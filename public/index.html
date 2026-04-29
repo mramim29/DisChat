@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DISCHAT // TERMINAL</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="scanlines"></div>
+
+    <div id="auth-layer" class="gate-wrapper">
+        <div class="gate-panel">
+            <div class="glitch-title" data-text="DISCHAT_OS">DISCHAT_OS</div>
+            <div class="gate-body">
+                <div class="input-group">
+                    <label>IDENTITY_ID</label>
+                    <input id="l-u" type="text" spellcheck="false">
+                </div>
+                <div class="input-group">
+                    <label>PASSKEY</label>
+                    <input id="l-p" type="password">
+                </div>
+                <button class="gate-btn" onclick="auth('login')">INITIALIZE_LINK</button>
+                <p id="auth-msg" class="status-msg"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="app" class="terminal-grid" style="display:none">
+        
+        <nav class="sidebar">
+            <div class="side-header">
+                <div class="avatar-frame" id="nav-avatar" onclick="toggleModal('profile-modal')">?</div>
+                <div class="power-off" onclick="location.reload()">⏻</div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-label">NETWORK_NODES</div>
+                <div class="node-item" onclick="joinRoom('global', 'GLOBAL_NET')">
+                    <span class="icon">#</span> GLOBAL_NET
+                </div>
+                
+                <div class="nav-label flex-between">
+                    <span>CLUSTERS</span>
+                    <button class="mini-btn" onclick="openClusterModal()">[+]</button>
+                </div>
+                <div id="private-list" class="node-scroll"></div>
+            </div>
+        </nav>
+
+        <main class="viewport">
+            <header class="view-header">
+                <div class="room-info" onclick="viewClusterProfile()">
+                    <span class="prefix">//</span>
+                    <span id="room-name">STANDBY</span>
+                </div>
+                <div class="encryption-tag">256-BIT_AES</div>
+            </header>
+
+            <div id="chat-container" class="msg-feed">
+                <div id="msg-wrap"></div>
+            </div>
+
+            <footer class="input-bay">
+                <div class="input-container">
+                    <input id="m-input" placeholder="ENTER_TRANSMISSION..." onkeypress="if(event.key==='Enter') send()">
+                    <button class="send-btn" onclick="send()">TRANSMIT</button>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <div id="cluster-modal" class="modal-bg">
+        <div class="hex-modal">
+            <div id="join-view">
+                <div class="modal-header">JOIN_NODE</div>
+                <input id="j-id" placeholder="NODE_ID">
+                <input id="j-pass" type="password" placeholder="PASSKEY (OPTIONAL)" class="mt-10">
+                <button class="gate-btn mt-20" onclick="joinCluster()">ESTABLISH_CONNECTION</button>
+                <p class="sub-link" onclick="switchClusterView('create')">GENERATE_NEW_CLUSTER</p>
+            </div>
+            <div id="create-view" style="display:none">
+                <div class="modal-header">NEW_CLUSTER</div>
+                <input id="g-name" placeholder="CLUSTER_NAME">
+                <div class="toggle-row mt-10">
+                    <label><input type="radio" name="privacy" value="public" checked onchange="toggleGPass(false)"> PUBLIC</label>
+                    <label><input type="radio" name="privacy" value="private" onchange="toggleGPass(true)"> PRIVATE</label>
+                </div>
+                <input id="g-pass" type="password" placeholder="SET_PASSKEY..." style="display:none" class="mt-10">
+                <button class="gate-btn mt-20" onclick="createCluster()">INITIALIZE_NODE</button>
+                <p class="sub-link" onclick="switchClusterView('join')">RETURN_TO_LINK</p>
+            </div>
+            <button class="close-btn" onclick="toggleModal('cluster-modal')">ABORT</button>
+        </div>
+    </div>
+
+    <div id="cluster-profile-modal" class="modal-bg">
+        <div class="hex-modal">
+            <div class="modal-header">NODE_FILE</div>
+            <div class="node-meta">
+                <div class="avatar-frame large" id="cp-icon">C</div>
+                <h2 id="cp-name" class="neon-text">---</h2>
+                <code id="cp-id">ID: ---</code>
+            </div>
+            <div class="member-list">
+                <div class="nav-label">AUTHORIZED_USERS</div>
+                <div id="cp-members" class="scroll-box"></div>
+            </div>
+            <button class="close-btn mt-20" onclick="toggleModal('cluster-profile-modal')">CLOSE_FILE</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
