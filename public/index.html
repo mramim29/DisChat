@@ -5,74 +5,115 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>DISCHAT // TERMINAL</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Critical inline fixes for modal and toast layering */
+        #toast-bin { z-index: 10001 !important; }
+        .modal-bg { z-index: 5000 !important; }
+    </style>
 </head>
 <body>
+    <!-- Scanlines Overlay -->
     <div class="scanlines"></div>
+
+    <!-- Toast Container (Highest Z-Index) -->
     <div id="toast-bin"></div>
 
+    <!-- AUTH LAYER -->
     <div id="auth-layer" class="gate-wrapper">
         <div class="gate-panel">
             <div class="glitch-title">DISCHAT_OS</div>
+            
             <input id="l-u" class="gate-input" placeholder="IDENTITY_ID" spellcheck="false" autocomplete="off">
             <input id="l-p" class="gate-input" type="password" placeholder="PASSKEY">
+            
             <button class="gate-btn" onclick="auth('login')">INITIALIZE_LINK</button>
             <button class="gate-btn outline" onclick="auth('register')">REGISTER_ID</button>
-            <p id="auth-msg" style="text-align:center; margin-top:1.5rem; font-size:0.85rem; min-height:1em;"></p>
+            
+            <p id="auth-msg" style="text-align:center; margin-top:1.5rem; font-size:0.85rem; min-height:1.2em;"></p>
         </div>
     </div>
 
+    <!-- MAIN APPLICATION -->
     <div id="app" class="terminal-grid" style="display:none">
+        
+        <!-- SIDEBAR -->
         <aside id="sidebar" class="sidebar">
             <div style="padding:1.5rem; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
                 <div class="avatar-round" id="nav-avatar" onclick="openProfile('me')">?</div>
-                <button class="gate-btn outline mobile-only" style="width:50px; padding:0.5rem; margin:0;" onclick="toggleSide()">[X]</button>
+                <button class="gate-btn outline mobile-only" 
+                        style="width:50px; padding:0.5rem; margin:0;" 
+                        onclick="toggleSide()">[X]</button>
             </div>
 
+            <!-- Search -->
             <div style="padding:1rem; position:relative;">
-                <input id="net-search" placeholder="SEARCH_NET..." oninput="handleSearch()" class="gate-input" style="margin:0;">
+                <input id="net-search" 
+                       placeholder="SEARCH_NET..." 
+                       oninput="handleSearch()" 
+                       class="gate-input" 
+                       style="margin:0;">
                 <div id="search-drop" class="search-results"></div>
             </div>
 
-            <div style="flex:1; overflow-y:auto;">
-                <div style="color:var(--neon); padding:1rem 1.5rem; font-size:0.8rem; opacity:0.6;">_GLOBAL</div>
+            <div style="flex:1; overflow-y:auto; padding-bottom:1rem;">
+                
+                <!-- Global -->
+                <div style="color:var(--neon); padding:1rem 1.5rem 0.5rem; font-size:0.8rem; opacity:0.6;">_GLOBAL</div>
                 <div class="nav-item" onclick="joinRoom('global', 'GLOBAL_NET')">[#] GLOBAL_TRANS</div>
                 
+                <!-- Clusters -->
                 <div style="display:flex; justify-content:space-between; padding:1.5rem 1.5rem 0.5rem; color:var(--neon); font-size:0.8rem; opacity:0.6;">
                     <span>_CLUSTERS</span>
                     <span onclick="openCreateGroupModal()" style="cursor:pointer; font-weight:bold;">[+]</span>
                 </div>
                 <div id="cluster-list"></div>
 
+                <!-- Direct Messages -->
                 <div style="color:var(--neon); padding:1.5rem 1.5rem 0.5rem; font-size:0.8rem; opacity:0.6;">_DIRECT_PEERS</div>
                 <div id="dm-list"></div>
             </div>
         </aside>
 
+        <!-- MAIN CHAT VIEWPORT -->
         <main class="viewport">
+            
+            <!-- Header -->
             <header class="view-header">
                 <div class="hamburger mobile-only" onclick="toggleSide()">
-                    <span></span><span></span><span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
                 </div>
-                <div onclick="openProfile('room')" style="cursor:pointer; font-size:1.2rem; font-weight:bold;">
-                    <span style="color:var(--neon)">//</span> <span id="active-room">STANDBY</span>
+                <div onclick="openProfile('room')" style="cursor:pointer; font-size:1.2rem; font-weight:bold; flex:1;">
+                    <span style="color:var(--neon)">//</span> 
+                    <span id="active-room">STANDBY</span>
                 </div>
             </header>
 
+            <!-- Message Flow -->
             <div id="msg-flow" class="chat-flow"></div>
 
+            <!-- Input Area -->
             <footer class="input-bay">
                 <div class="input-box">
-                    <input id="m-in" placeholder="DATA_TRANSMIT..." autocomplete="off">
-                    <button class="gate-btn" style="width:140px; margin:0;" onclick="sendMsg()">TRANSMIT</button>
+                    <input id="m-in" 
+                           placeholder="DATA_TRANSMIT..." 
+                           autocomplete="off"
+                           onkeypress="if(event.key === 'Enter') sendMsg()">
+                    <button class="gate-btn" style="width:140px; margin:0;" onclick="sendMsg()">
+                        TRANSMIT
+                    </button>
                 </div>
             </footer>
         </main>
     </div>
 
+    <!-- MODAL -->
     <div id="modal-bg" class="modal-bg" onclick="closeModal(event)">
         <div id="modal-box" class="gate-panel" style="width:90%; max-width:450px;"></div>
     </div>
 
+    <!-- Scripts -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
 </body>
