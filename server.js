@@ -1,3 +1,6 @@
+/* ==========================================================================
+   BLOCK 0: CONFIG & SCHEMAS
+   ========================================================================== */
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -14,7 +17,6 @@ mongoose.connect(process.env.MONGO_URI, { dbName: 'dischat_data' })
     .then(() => console.log(">>> [SYSTEM]: NEURAL_LINK_STABILIZED"))
     .catch(err => console.error(">>> [FATAL]: DATABASE_OFFLINE", err));
 
-// --- DATA SCHEMAS ---
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, unique: true, required: true },
     password: { type: String, required: true },
@@ -27,6 +29,8 @@ const Group = mongoose.model('Group', new mongoose.Schema({
     groupName: String,
     isPublic: { type: Boolean, default: true },
     password: { type: String, default: "" },
+    createdBy: String,
+    createdAt: { type: Date, default: Date.now },
     members: [String]
 }));
 
@@ -34,78 +38,78 @@ const Message = mongoose.model('Message', new mongoose.Schema({
     room: String, sender: String, text: String, timestamp: { type: Date, default: Date.now }
 }));
 
-// --- SOCKET ENGINE ---
+/* ==========================================================================
+   BLOCK 1: AUTH & NOTIFICATION ENGINE
+   ========================================================================== */
 io.on('connection', (socket) => {
-    let sessionUser = null;
-
-    socket.on('login', async (data) => {
-        const user = await User.findOne({ username: data.username, password: data.password });
-        if (user && user.isApproved) {
-            sessionUser = user.username;
-            socket.emit('login_success', { username: user.username, groups: user.groups });
-        } else {
-            socket.emit('auth_status', { ok: false, m: 'ACCESS_DENIED: INVALID_CREDENTIALS' });
-        }
+    
+    socket.on('register', async (data) => {
+        const exists = await User.findOne({ username: data.username });
+        if (exists) return socket.emit('notify', { type: 'error', m: 'ID_TAKEN' });
+        
+        await new User({ username: data.username, password: data.password }).save();
+        socket.emit('notify', { type: 'success', m: 'REGISTRATION_COMPLETE: AWAITING_APPROVAL' });
     });
 
-    socket.on('join_room', async (roomId) => {
-        // Strict Room Partitioning: Leave all other rooms first
-        socket.rooms.forEach(room => { if(room !== socket.id) socket.leave(room); });
+    socket.on('login', async (data) => {
+        const user = await User.findOne({ username: data.username });
+        if (!user) return socket.emit('notify', { type: 'error', m: 'IDENTITY_NOT_FOUND' });
+        if (user.password !== data.password) return socket.emit('notify', { type: 'error', m: 'PASSKEY_REJECTED' });
+        if (!user.isApproved) return socket.emit('notify', { type: 'error', m: 'ACCOUNT_NOT_APPROVED' });
         
+        socket.emit('login_success', { username: user.username, groups: user.groups });
+    });
+
+/* ==========================================================================
+   BLOCK 2: DYNAMIC SEARCH & GROUP SUGGESTIONS
+   ========================================================================== */
+    socket.on('search_query', async (query) => {
+        if (!query) return;
+        // Find public groups first, then private
+        const groups = await Group.find({ groupName: { $regex: query, $options: 'i' } })
+                                 .sort({ isPublic: -1 }).limit(6);
+        const users = await User.find({ username: { $regex: query, $options: 'i' }, isApproved: true }).limit(4);
+        socket.emit('search_results', { groups, users });
+    });
+
+    socket.on('create_group', async (data) => {
+        const roomId = "CLUSTER_" + Math.random().toString(36).substring(2, 9).toUpperCase();
+        const newGroup = new Group({
+            roomId, groupName: data.groupName, isPublic: data.isPublic,
+            password: data.password || "", createdBy: data.creator, members: [data.creator]
+        });
+        await newGroup.save();
+        
+        const groupRef = { roomId, groupName: data.groupName, isDM: false };
+        await User.updateOne({ username: data.creator }, { $addToSet: { groups: groupRef } });
+        socket.emit('join_success', groupRef);
+    });
+
+/* ==========================================================================
+   BLOCK 3: CHAT & NOTIFICATIONS
+   ========================================================================== */
+    socket.on('join_room', async (roomId) => {
+        socket.rooms.forEach(r => { if(r !== socket.id) socket.leave(r); });
         socket.join(roomId);
         const history = await Message.find({ room: roomId }).sort({ timestamp: 1 }).limit(50);
         socket.emit('chat_history', history);
     });
 
     socket.on('send_msg', async (payload) => {
-        const { room, text, sender } = payload;
-        if (!room || !text) return;
-
-        const newMsg = new Message({ room, sender, text });
-        await newMsg.save();
-        
-        // Target specific room only
-        io.to(room).emit('new_msg', { room, sender, text, timestamp: newMsg.timestamp });
-    });
-
-    socket.on('create_group', async (data) => {
-        const roomId = "CLUSTER_" + Math.random().toString(36).substring(2, 9).toUpperCase();
-        const newGroup = new Group({
-            roomId,
-            groupName: data.groupName,
-            isPublic: data.isPublic,
-            password: data.password || "",
-            members: [data.creator]
+        const msg = new Message(payload);
+        await msg.save();
+        io.to(payload.room).emit('new_msg', msg);
+        // Broadcast notification to the room (excluding sender)
+        socket.to(payload.room).emit('notify_msg', { 
+            from: payload.sender, 
+            roomName: payload.roomName || "CHANNEL" 
         });
-
-        await newGroup.save();
-        
-        const groupRef = { roomId, groupName: data.groupName, isDM: false };
-        await User.updateOne({ username: data.creator }, { $addToSet: { groups: groupRef } });
-        
-        socket.emit('join_cluster_res', { ok: true, payload: groupRef });
     });
 
-    socket.on('join_private_cluster', async (data) => {
-        const cleanId = data.roomId.includes('CLUSTER_') ? data.roomId : `CLUSTER_${data.roomId}`;
-        const cluster = await Group.findOne({ roomId: cleanId });
-
-        if (!cluster) return socket.emit('join_cluster_res', { ok: false, m: 'NOT_FOUND' });
-        if (!cluster.isPublic && cluster.password !== data.password) {
-            return socket.emit('join_cluster_res', { ok: false, m: 'INVALID_PASSKEY' });
-        }
-
-        const groupRef = { roomId: cluster.roomId, groupName: cluster.groupName, isDM: false };
-        await User.updateOne({ username: data.username }, { $addToSet: { groups: groupRef } });
-        await Group.updateOne({ roomId: cluster.roomId }, { $addToSet: { members: data.username } });
-
-        socket.emit('join_cluster_res', { ok: true, payload: groupRef });
-    });
-
-    socket.on('get_cluster_info', async (roomId) => {
-        const cluster = await Group.findOne({ roomId });
-        if (cluster) socket.emit('cluster_info_res', cluster);
+    socket.on('get_group_profile', async (roomId) => {
+        const g = await Group.findOne({ roomId });
+        if(g) socket.emit('group_profile_res', g);
     });
 });
 
-server.listen(3000, () => console.log('>>> [LINK_ACTIVE]'));
+server.listen(3000, () => console.log('>>> [STABLE_LINK_ACTIVE]'));

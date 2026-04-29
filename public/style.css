@@ -1,64 +1,68 @@
+/* ==========================================================================
+   BLOCK 0: THEME & UTILS
+   ========================================================================== */
 :root {
     --neon: #00f2ff;
-    --neon-dim: rgba(0, 242, 255, 0.2);
+    --neon-dim: rgba(0, 242, 255, 0.15);
     --bg: #050608;
     --panel: #0d1117;
     --border: #1a212a;
-    --danger: #ff0055;
 }
-
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Courier New', monospace; }
-
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'JetBrains Mono', monospace; }
 body { background: var(--bg); color: #c9d1d9; height: 100vh; overflow: hidden; }
 
-/* Scanline Effect */
-.scanlines {
-    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 112, 0.06));
-    background-size: 100% 4px, 3px 100%;
-}
+/* Scanline Overlay */
+.scanlines { position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255,0,0,0.02), rgba(0,255,0,0.01), rgba(0,0,112,0.02)); background-size: 100% 4px, 3px 100%; }
 
-/* Auth Gate */
-.gate-wrapper { height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #0a111a 0%, #000 100%); }
+/* ==========================================================================
+   BLOCK 1: LOGIN (Cyber Aesthetic Restored)
+   ========================================================================== */
+.gate-wrapper { height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #0a111a 0%, #000 100%); z-index: 1000; position: relative; }
 .gate-panel { width: 380px; padding: 40px; background: var(--panel); border: 1px solid var(--neon); box-shadow: 0 0 20px var(--neon-dim); border-radius: 0 20px 0 20px; }
 .glitch-title { font-size: 2rem; color: var(--neon); text-align: center; margin-bottom: 30px; letter-spacing: 5px; font-weight: bold; }
+.gate-btn { 
+    width: 100%; background: var(--neon); color: #000; border: none; padding: 14px; 
+    font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s;
+    clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%); 
+}
+.gate-btn:hover { box-shadow: 0 0 15px var(--neon); transform: translateY(-2px); }
+.gate-btn.outline { background: transparent; border: 1px solid var(--neon); color: var(--neon); }
 
-.input-group { margin-bottom: 20px; }
-.input-group label { display: block; font-size: 0.7rem; color: var(--neon); margin-bottom: 8px; }
-input { width: 100%; background: #000; border: 1px solid var(--border); color: var(--neon); padding: 12px; outline: none; transition: 0.3s; }
-input:focus { border-color: var(--neon); box-shadow: 0 0 10px var(--neon-dim); }
-
-.gate-btn { width: 100%; background: var(--neon); color: #000; border: none; padding: 15px; font-weight: bold; cursor: pointer; transition: 0.3s; clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%); }
-.gate-btn:hover { box-shadow: 0 0 20px var(--neon); transform: scale(1.02); }
-
-/* Main HUD */
+/* ==========================================================================
+   BLOCK 2: GRID LAYOUT (PC vs MOBILE)
+   ========================================================================== */
 .terminal-grid { display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
-.sidebar { background: #080a0f; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.side-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 
-.avatar-frame { width: 50px; height: 50px; border: 2px solid var(--neon); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; background: var(--neon-dim); color: var(--neon); border-radius: 4px; cursor: pointer; }
-.avatar-frame.large { width: 80px; height: 80px; font-size: 2rem; margin: 0 auto 15px; }
+.sidebar { background: #080a0f; border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; transition: 0.3s; }
 
-.viewport { display: grid; grid-template-rows: 70px 1fr 100px; background: #050505; }
-.view-header { border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 30px; justify-content: space-between; }
-.room-info { cursor: pointer; font-weight: bold; color: var(--neon); font-size: 1.1rem; }
+.viewport { display: grid; grid-template-rows: 60px 1fr 90px; background: #000; height: 100vh; }
 
-.msg-feed { padding: 30px; overflow-y: auto; background-image: radial-gradient(rgba(0, 242, 255, 0.05) 1px, transparent 1px); background-size: 30px 30px; }
-.msg-bubble { margin-bottom: 20px; max-width: 75%; }
-.bubble-inner { padding: 12px 20px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--border); border-radius: 2px; position: relative; }
-.me .bubble-inner { border-left: 0; border-right: 3px solid var(--neon); background: var(--neon-dim); }
+/* Sidebar Mobile States */
+@media (max-width: 768px) {
+    .terminal-grid { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; left: -100%; top: 0; bottom: 0; width: 280px; }
+    .sidebar.active { left: 0; box-shadow: 10px 0 30px #000; }
+}
 
-.input-bay { padding: 20px 40px; }
-.input-container { display: flex; background: #000; border: 1px solid var(--border); padding: 5px; }
-.send-btn { background: var(--neon); border: none; padding: 0 25px; color: #000; font-weight: bold; cursor: pointer; }
+/* ==========================================================================
+   BLOCK 3: UI COMPONENTS (Profiles & Notifications)
+   ========================================================================== */
+.profile-round { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--neon); background: var(--neon-dim); color: var(--neon); display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
+.profile-round:hover { box-shadow: 0 0 10px var(--neon); }
 
-/* Modals */
-.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 1000; }
-.hex-modal { background: var(--panel); border: 1px solid var(--neon); padding: 30px; width: 400px; position: relative; }
-.modal-header { font-size: 1.2rem; color: var(--neon); margin-bottom: 20px; border-bottom: 1px solid var(--neon-dim); padding-bottom: 10px; text-align: center; }
+.search-drop { 
+    position: absolute; top: 110px; left: 15px; right: 15px; 
+    background: var(--panel); border: 1px solid var(--neon); z-index: 200; 
+    display: none; box-shadow: 0 10px 30px #000;
+}
+.drop-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.8rem; }
+.drop-item:hover { background: var(--neon-dim); color: var(--neon); }
 
-.close-btn { width: 100%; background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 10px; margin-top: 15px; cursor: pointer; }
-.close-btn:hover { background: var(--danger); color: #fff; }
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; pointer-events: none; }
+.toast { background: var(--panel); border: 1px solid var(--neon); padding: 15px 25px; color: #fff; margin-bottom: 10px; border-left: 5px solid var(--neon); animation: slideIn 0.3s ease-out; pointer-events: all; }
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
-.mt-10 { margin-top: 10px; }
-.mt-20 { margin-top: 20px; }
+/* Fix Input Area */
+.input-bay { padding: 15px 30px; background: var(--panel); border-top: 1px solid var(--border); }
+.input-box { display: flex; border: 1px solid var(--neon); background: #000; overflow: hidden; }
+.input-box input { flex: 1; background: transparent; border: none; color: #fff; padding: 12px; outline: none; }
