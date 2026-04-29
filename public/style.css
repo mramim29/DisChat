@@ -1,5 +1,5 @@
 /* ==========================================================================
-   BLOCK 0: THEME & UTILS
+   BLOCK 0: CORE THEME
    ========================================================================== */
 :root {
     --neon: #00f2ff;
@@ -7,62 +7,139 @@
     --bg: #050608;
     --panel: #0d1117;
     --border: #1a212a;
+    --danger: #ff0055;
+    --sidebar-w: 320px;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'JetBrains Mono', monospace; }
-body { background: var(--bg); color: #c9d1d9; height: 100vh; overflow: hidden; }
 
-/* Scanline Overlay */
-.scanlines { position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255,0,0,0.02), rgba(0,255,0,0.01), rgba(0,0,112,0.02)); background-size: 100% 4px, 3px 100%; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'JetBrains Mono', monospace; }
+
+body { 
+    background: var(--bg); 
+    color: #c9d1d9; 
+    height: 100dvh; 
+    overflow: hidden; 
+}
+
+.scanlines {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%), 
+                linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 112, 0.03));
+    background-size: 100% 4px, 3px 100%;
+}
 
 /* ==========================================================================
-   BLOCK 1: LOGIN (Cyber Aesthetic Restored)
+   BLOCK 1: LOGIN UI (RESTORED & OPTIMIZED)
    ========================================================================== */
-.gate-wrapper { height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #0a111a 0%, #000 100%); z-index: 1000; position: relative; }
-.gate-panel { width: 380px; padding: 40px; background: var(--panel); border: 1px solid var(--neon); box-shadow: 0 0 20px var(--neon-dim); border-radius: 0 20px 0 20px; }
-.glitch-title { font-size: 2rem; color: var(--neon); text-align: center; margin-bottom: 30px; letter-spacing: 5px; font-weight: bold; }
-.gate-btn { 
-    width: 100%; background: var(--neon); color: #000; border: none; padding: 14px; 
-    font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s;
-    clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%); 
+.gate-wrapper { 
+    height: 100dvh; display: flex; align-items: center; justify-content: center; 
+    background: radial-gradient(circle, #0a111a 0%, #000 100%); 
 }
-.gate-btn:hover { box-shadow: 0 0 15px var(--neon); transform: translateY(-2px); }
+
+.gate-panel { 
+    width: 90%; max-width: 420px; padding: 40px; 
+    background: var(--panel); border: 1px solid var(--neon); 
+    box-shadow: 0 0 30px var(--neon-dim); 
+    clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10% Labs);
+    border-radius: 2px;
+}
+
+.glitch-title { 
+    font-size: 2.2rem; color: var(--neon); text-align: center; 
+    margin-bottom: 30px; letter-spacing: 6px; font-weight: 900;
+    text-shadow: 2px 0 var(--danger), -2px 0 #fff;
+}
+
+.gate-input {
+    width: 100%; background: #000; border: 1px solid var(--border);
+    color: var(--neon); padding: 15px; margin-bottom: 15px;
+    outline: none; transition: 0.3s;
+}
+.gate-input:focus { border-color: var(--neon); box-shadow: 0 0 10px var(--neon-dim); }
+
+.gate-btn { 
+    width: 100%; background: var(--neon); color: #000; border: none; 
+    padding: 16px; font-weight: bold; cursor: pointer; margin-top: 10px;
+    clip-path: polygon(0 0, 100% 0, 96% 100%, 4% 100%); transition: 0.2s;
+}
+.gate-btn:hover { box-shadow: 0 0 20px var(--neon); transform: translateY(-2px); }
 .gate-btn.outline { background: transparent; border: 1px solid var(--neon); color: var(--neon); }
 
 /* ==========================================================================
-   BLOCK 2: GRID LAYOUT (PC vs MOBILE)
+   BLOCK 2: MAIN HUD & GRID
    ========================================================================== */
-.terminal-grid { display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
+.terminal-grid { 
+    display: grid; 
+    grid-template-columns: var(--sidebar-w) 1fr; 
+    height: 100dvh; 
+    width: 100vw;
+}
 
-.sidebar { background: #080a0f; border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; transition: 0.3s; }
+/* Sidebar Behavior */
+.sidebar { 
+    background: #080a0f; border-right: 1px solid var(--border); 
+    display: flex; flex-direction: column; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+}
 
-.viewport { display: grid; grid-template-rows: 60px 1fr 90px; background: #000; height: 100vh; }
+/* Viewport & Input Docking */
+.viewport { 
+    display: grid; 
+    grid-template-rows: 70px 1fr 100px; 
+    height: 100dvh; 
+    background: #000; 
+    overflow: hidden;
+}
 
-/* Sidebar Mobile States */
+.chat-flow { 
+    padding: 20px; overflow-y: auto; 
+    background-image: radial-gradient(var(--neon-dim) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+.input-bay { 
+    background: var(--panel); border-top: 1px solid var(--border); 
+    display: flex; align-items: center; justify-content: center; padding: 0 20px;
+}
+
+.input-box {
+    display: flex; width: 100%; max-width: 1000px; 
+    border: 1px solid var(--neon); background: #000; height: 50px;
+}
+.input-box input { flex: 1; background: transparent; border: none; color: #fff; padding: 0 20px; outline: none; }
+
+/* ==========================================================================
+   BLOCK 3: MOBILE OVERRIDES
+   ========================================================================== */
 @media (max-width: 768px) {
     .terminal-grid { grid-template-columns: 1fr; }
-    .sidebar { position: fixed; left: -100%; top: 0; bottom: 0; width: 280px; }
-    .sidebar.active { left: 0; box-shadow: 10px 0 30px #000; }
+    .sidebar { 
+        position: fixed; left: -100%; top: 0; bottom: 0; 
+        width: 85%; max-width: 320px; 
+    }
+    .sidebar.active { left: 0; box-shadow: 20px 0 60px #000; }
+    .viewport { grid-template-rows: 60px 1fr 80px; }
+    .input-bay { padding: 0 10px; }
 }
 
 /* ==========================================================================
-   BLOCK 3: UI COMPONENTS (Profiles & Notifications)
+   BLOCK 4: UI COMPONENTS
    ========================================================================== */
-.profile-round { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--neon); background: var(--neon-dim); color: var(--neon); display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
-.profile-round:hover { box-shadow: 0 0 10px var(--neon); }
-
-.search-drop { 
-    position: absolute; top: 110px; left: 15px; right: 15px; 
-    background: var(--panel); border: 1px solid var(--neon); z-index: 200; 
-    display: none; box-shadow: 0 10px 30px #000;
+.hamburger {
+    cursor: pointer; display: flex; flex-direction: column; gap: 5px;
+    padding: 10px; margin-right: 15px; border: 1px solid var(--neon-dim);
 }
-.drop-item { padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.8rem; }
-.drop-item:hover { background: var(--neon-dim); color: var(--neon); }
+.hamburger span { display: block; width: 25px; height: 2px; background: var(--neon); }
 
-.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; pointer-events: none; }
-.toast { background: var(--panel); border: 1px solid var(--neon); padding: 15px 25px; color: #fff; margin-bottom: 10px; border-left: 5px solid var(--neon); animation: slideIn 0.3s ease-out; pointer-events: all; }
+.search-results {
+    position: absolute; width: 100%; top: 100%; left: 0;
+    background: var(--panel); border: 1px solid var(--neon); 
+    display: none; z-index: 2000; max-height: 400px; overflow-y: auto;
+}
+
+.notification-toast {
+    position: fixed; top: 20px; right: 20px; background: var(--panel);
+    border-left: 4px solid var(--neon); padding: 15px 25px;
+    animation: slideIn 0.3s ease; z-index: 9999;
+}
+
 @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-
-/* Fix Input Area */
-.input-bay { padding: 15px 30px; background: var(--panel); border-top: 1px solid var(--border); }
-.input-box { display: flex; border: 1px solid var(--neon); background: #000; overflow: hidden; }
-.input-box input { flex: 1; background: transparent; border: none; color: #fff; padding: 12px; outline: none; }

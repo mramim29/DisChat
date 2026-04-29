@@ -8,68 +8,67 @@
 </head>
 <body>
     <div class="scanlines"></div>
-    <div id="toast-wrap" class="toast-container"></div>
+    <div id="toast-bin"></div>
 
     <div id="auth-layer" class="gate-wrapper">
         <div class="gate-panel">
             <div class="glitch-title">DISCHAT_OS</div>
-            <input id="l-u" type="text" placeholder="IDENTITY_ID" spellcheck="false" style="margin-bottom:15px; background:#000; border:1px solid var(--border); color:var(--neon); width:100%; padding:12px;">
-            <input id="l-p" type="password" placeholder="PASSKEY" style="margin-bottom:15px; background:#000; border:1px solid var(--border); color:var(--neon); width:100%; padding:12px;">
+            <input id="l-u" class="gate-input" placeholder="IDENTITY_ID" spellcheck="false">
+            <input id="l-p" class="gate-input" type="password" placeholder="PASSKEY">
             <button class="gate-btn" onclick="auth('login')">INITIALIZE_LINK</button>
             <button class="gate-btn outline" onclick="auth('register')">REGISTER_ID</button>
+            <p id="auth-msg" style="text-align:center; margin-top:20px; font-size:0.7rem; min-height:1em;"></p>
         </div>
     </div>
 
     <div id="app" class="terminal-grid" style="display:none">
+        
         <aside id="sidebar" class="sidebar">
-            <div class="side-header" style="padding:15px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-                <div class="profile-round" id="nav-avatar" onclick="showProfile('me')">?</div>
-                <button onclick="toggleSide()" class="gate-btn outline" style="width:40px; padding:5px; margin:0;">[X]</button>
+            <div class="side-header" style="padding:20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                <div class="avatar-round" id="nav-avatar" onclick="openProfile('me')" style="width:50px; height:50px; border-radius:50%; border:2px solid var(--neon); display:flex; align-items:center; justify-content:center; color:var(--neon); cursor:pointer;">?</div>
+                <button class="gate-btn outline" style="width:40px; padding:5px; margin:0;" onclick="toggleSide()">[X]</button>
             </div>
 
             <div style="padding:15px; position:relative;">
-                <input id="main-search" placeholder="SEARCH_NETWORK..." oninput="doSearch()" style="width:100%; background:#000; border:1px solid var(--border); color:var(--neon); padding:10px;">
-                <div id="search-drop" class="search-drop"></div>
+                <input id="net-search" placeholder="SEARCH_NET..." oninput="handleSearch()" class="gate-input" style="margin:0;">
+                <div id="search-drop" class="search-results"></div>
             </div>
 
-            <div class="nav-section" style="flex:1; overflow-y:auto;">
-                <div class="nav-label" style="color:var(--neon); font-size:0.7rem; padding:10px 15px; opacity:0.5;">_GLOBAL</div>
-                <div class="drop-item" onclick="joinRoom('global', 'GLOBAL_NET')">[#] GLOBAL_NET</div>
+            <div style="flex:1; overflow-y:auto;">
+                <div style="color:var(--neon); padding:10px 20px; font-size:0.7rem; opacity:0.6;">_GLOBAL</div>
+                <div class="nav-item" onclick="joinRoom('global', 'GLOBAL_NET')">[#] GLOBAL_TRANS</div>
                 
-                <div class="nav-label" style="display:flex; justify-content:space-between; padding:15px; color:var(--neon); font-size:0.7rem; opacity:0.5;">
+                <div style="display:flex; justify-content:space-between; padding:15px 20px; color:var(--neon); font-size:0.7rem; opacity:0.6;">
                     <span>_CLUSTERS</span>
-                    <span onclick="openCreateModal()" style="cursor:pointer;">[+]</span>
+                    <span onclick="triggerCreate()" style="cursor:pointer;">[+]</span>
                 </div>
                 <div id="cluster-list"></div>
-
-                <div class="nav-label" style="padding:15px; color:var(--neon); font-size:0.7rem; opacity:0.5;">_PEERS</div>
-                <div id="dm-list"></div>
             </div>
         </aside>
 
         <main class="viewport">
-            <header style="display:flex; align-items:center; padding:0 20px; border-bottom:1px solid var(--border);">
-                <button class="gate-btn outline mobile-only" style="width:40px; margin-right:15px;" onclick="toggleSide()">[M]</button>
-                <div onclick="showProfile('room')" style="cursor:pointer;">
-                    <span style="color:var(--neon)">//</span> <span id="room-name">STANDBY</span>
+            <header style="display:flex; align-items:center; padding:0 25px; border-bottom:1px solid var(--border);">
+                <div class="hamburger" onclick="toggleSide()">
+                    <span></span><span></span><span></span>
+                </div>
+                <div onclick="openProfile('room')" style="cursor:pointer;">
+                    <span style="color:var(--neon)">//</span> <span id="active-room">STANDBY</span>
                 </div>
             </header>
 
-            <div id="chat-feed" class="msg-feed">
-                <div id="msg-wrap"></div>
-            </div>
+            <div id="msg-flow" class="chat-flow"></div>
 
             <footer class="input-bay">
                 <div class="input-box">
-                    <input id="m-input" placeholder="DATA_TRANSMIT..." onkeypress="if(event.key==='Enter') sendMsg()">
+                    <input id="m-in" placeholder="DATA_TRANSMIT..." onkeypress="if(event.key==='Enter') sendMsg()">
                     <button class="gate-btn" style="width:100px; margin:0;" onclick="sendMsg()">SEND</button>
                 </div>
             </footer>
         </main>
     </div>
 
-    <div id="modal-bg" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center;" onclick="closeModal(event)">
-        <div id="modal-box" class="gate-panel" style="width:400px; text-align:center;"></div>
+    <div id="modal-bg" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:5000; align-items:center; justify-content:center;" onclick="closeModal(event)">
+        <div id="modal-box" class="gate-panel" style="width:380px; text-align:center;"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
