@@ -1,4 +1,4 @@
-// server.js
+// server.js - FULLY FIXED & PROFESSIONAL (May 2026)
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -15,219 +15,210 @@ const io = new Server(server, {
 
 app.use(express.static('public'));
 
-// MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, { dbName: 'dischat_data' })
     .then(() => console.log(">>> [SYSTEM_CORE]: DATABASE_ONLINE"))
     .catch(err => console.error(">>> [FATAL_ERR]: DB_CONNECTION_FAILED", err));
 
-// Schemas
-const UserSchema = new mongoose.Schema({
-    username: { type: String, unique: true, required: true, trim: true },
+// ====================== SCHEMAS ======================
+const User = mongoose.model('User', new mongoose.Schema({
+    username: { type: String, unique: true, required: true, trim: true, lowercase: true },
     password: { type: String, required: true },
     isApproved: { type: Boolean, default: false },
+    isVip: { type: Boolean, default: false },
     groups: [{ roomId: String, groupName: String, isDM: Boolean }]
-});
+}, { timestamps: true }));
 
-const GroupSchema = new mongoose.Schema({
+const Group = mongoose.model('Group', new mongoose.Schema({
     roomId: { type: String, unique: true, required: true },
     groupName: { type: String, required: true, trim: true },
     isPublic: { type: Boolean, default: true },
     password: { type: String, default: "" },
     createdBy: String,
     createdAt: { type: Date, default: Date.now },
-    members: [{ type: String, ref: 'User' }]
-});
+    members: [String]
+}, { timestamps: true }));
 
-const MessageSchema = new mongoose.Schema({
+const Message = mongoose.model('Message', new mongoose.Schema({
     room: String,
     roomName: String,
     sender: String,
     text: String,
+    isVip: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now }
-});
+}));
 
-const User = mongoose.model('User', UserSchema);
-const Group = mongoose.model('Group', GroupSchema);
-const Message = mongoose.model('Message', MessageSchema);
-
-// Socket.IO Logic
+// ====================== SOCKET EVENTS ======================
 io.on('connection', (socket) => {
     console.log(`[SOCKET] Client connected: ${socket.id}`);
 
-    // ====================== AUTH ======================
+    // AUTH
     socket.on('login', async (data) => {
         try {
-            if (!data?.username || !data?.password) {
-                return socket.emit('auth_status', { ok: false, m: "INVALID_CREDENTIALS" });
-            }
-
-            const user = await User.findOne({ username: data.username });
+            const user = await User.findOne({ username: data.username.toLowerCase() });
             if (!user) return socket.emit('auth_status', { ok: false, m: "IDENTITY_NOT_FOUND" });
             if (user.password !== data.password) return socket.emit('auth_status', { ok: false, m: "PASSKEY_REJECTED" });
             if (!user.isApproved) return socket.emit('auth_status', { ok: false, m: "ACCESS_PENDING_APPROVAL" });
 
-            socket.data.username = user.username; // Store in socket for later use
+            socket.data.username = user.username;
+            socket.data.isVip = user.isVip;
 
-            socket.emit('login_success', {
-                username: user.username,
-                groups: user.groups || []
+            socket.emit('login_success', { 
+                username: user.username, 
+                groups: user.groups || [],
+                isVip: user.isVip 
             });
         } catch (err) {
-            console.error("Login error:", err);
-            socket.emit('notify', { m: "SERVER_ERROR_DURING_LOGIN", type: "error" });
+            console.error("[LOGIN_ERROR]", err);
+            socket.emit('notify', { m: "LOGIN_ERROR", type: "error" });
         }
     });
 
     socket.on('register', async (data) => {
         try {
-            if (!data?.username || !data?.password) {
-                return socket.emit('auth_status', { ok: false, m: "MISSING_FIELDS" });
-            }
-
-            const exists = await User.findOne({ username: data.username });
+            const exists = await User.findOne({ username: data.username.toLowerCase() });
             if (exists) return socket.emit('auth_status', { ok: false, m: "ID_ALREADY_EXISTS" });
 
-            await new User({ username: data.username, password: data.password }).save();
+            await new User({ username: data.username.toLowerCase(), password: data.password }).save();
             socket.emit('auth_status', { ok: true, m: "SUCCESS: AWAITING_APPROVAL" });
         } catch (err) {
-            console.error("Register error:", err);
+            console.error("[REGISTER_ERROR]", err);
             socket.emit('notify', { m: "REGISTRATION_FAILED", type: "error" });
         }
     });
 
-    // ====================== SEARCH ======================
+    // GLOBAL SEARCH
     socket.on('global_search', async (query) => {
         try {
-            if (!query || typeof query !== 'string') return;
+            if (!query || query.length < 2) return;
 
             const users = await User.find({
                 username: { $regex: query, $options: 'i' },
                 isApproved: true
-            }).select('username').limit(8);
+            }).select('username isVip').limit(10);
 
             const groups = await Group.find({
-                groupName: { $regex: query, $options: 'i' }
-            }).sort({ isPublic: -1 }).limit(8);
+                groupName: { $regex: query, $options: 'i' },
+                $or: [{ isPublic: true }, { members: socket.data.username }]
+            }).limit(10);
 
             socket.emit('search_results', { users, groups });
         } catch (err) {
-            console.error("Search error:", err);
+            console.error("[GLOBAL_SEARCH_ERROR]", err);
         }
     });
 
-    // ====================== CLUSTER MANAGEMENT ======================
+    // CREATE CLUSTER
     socket.on('create_cluster', async (data) => {
         try {
-            if (!socket.data?.username) return socket.emit('notify', { m: "NOT_AUTHENTICATED", type: "error" });
+            if (!socket.data.username || !data.groupName?.trim()) {
+                return socket.emit('notify', { m: "GROUP_NAME_REQUIRED", type: "error" });
+            }
 
-            const roomId = `CLUSTER_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+            const roomId = "CLUSTER_" + Math.random().toString(36).substring(2, 12).toUpperCase();
 
             const newGroup = new Group({
                 roomId,
-                groupName: data.groupName,
+                groupName: data.groupName.trim(),
                 isPublic: !!data.isPublic,
-                password: data.password || "",
+                password: data.isPublic ? "" : (data.password || ""),
                 createdBy: socket.data.username,
                 members: [socket.data.username]
             });
 
             await newGroup.save();
 
-            const groupRef = { roomId, groupName: data.groupName, isDM: false };
+            const groupRef = { roomId, groupName: data.groupName.trim(), isDM: false };
 
-            await User.updateOne(
-                { username: socket.data.username },
-                { $addToSet: { groups: groupRef } }
-            );
+            await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: groupRef } });
 
             socket.emit('cluster_joined', groupRef);
+            socket.emit('notify', { m: `Cluster "${data.groupName}" created`, type: "success" });
         } catch (err) {
-            console.error("Create cluster error:", err);
+            console.error("[CREATE_CLUSTER_ERROR]", err);
             socket.emit('notify', { m: "CLUSTER_CREATION_FAILED", type: "error" });
         }
     });
 
-    socket.on('join_cluster', async (data) => {
+    // START DM - FIXED
+    socket.on('start_dm', async ({ target, roomId, roomName }) => {
         try {
-            if (!socket.data?.username) return;
+            if (!socket.data.username || target === socket.data.username) return;
 
-            const group = await Group.findOne({ roomId: data.roomId });
-            if (!group) return socket.emit('notify', { m: "CLUSTER_NOT_FOUND", type: "error" });
+            const dmRef = { roomId, groupName: roomName, isDM: true };
 
-            const isMember = group.members.includes(socket.data.username);
+            // Add to both users
+            await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: dmRef } });
+            await User.updateOne({ username: target.toLowerCase(), isApproved: true }, { $addToSet: { groups: dmRef } });
 
-            if (!isMember && !group.isPublic && group.password !== (data.password || "")) {
-                return socket.emit('notify', { m: "INVALID_PASSKEY", type: "error" });
+            socket.join(roomId);
+            socket.emit('dm_started', dmRef);
+
+            // Notify target user if online
+            for (const [_, client] of io.sockets.sockets) {
+                if (client.data.username === target.toLowerCase()) {
+                    client.emit('dm_started', dmRef);
+                    client.join(roomId);
+                    break;
+                }
             }
-
-            const groupRef = { roomId: group.roomId, groupName: group.groupName, isDM: false };
-
-            await User.updateOne(
-                { username: socket.data.username },
-                { $addToSet: { groups: groupRef } }
-            );
-
-            await Group.updateOne(
-                { roomId: group.roomId },
-                { $addToSet: { members: socket.data.username } }
-            );
-
-            socket.emit('cluster_joined', groupRef);
         } catch (err) {
-            console.error("Join cluster error:", err);
-            socket.emit('notify', { m: "JOIN_FAILED", type: "error" });
+            console.error("[START_DM_ERROR]", err);
         }
     });
 
-    // ====================== CHAT ENGINE ======================
+    // JOIN ROOM
     socket.on('join_room', async (roomId) => {
         try {
-            // Safe room leaving - convert to array first
-            const currentRooms = Array.from(socket.rooms);
-            currentRooms.forEach(r => {
-                if (r !== socket.id) socket.leave(r);
+            if (!roomId || !socket.data.username) return;
+
+            Array.from(socket.rooms).forEach(r => {
+                if (r !== socket.id && r !== roomId && r !== 'global') socket.leave(r);
             });
 
             socket.join(roomId);
 
             const history = await Message.find({ room: roomId })
                 .sort({ timestamp: 1 })
-                .limit(100);
+                .limit(150);
 
             socket.emit('chat_history', history);
         } catch (err) {
-            console.error("Join room error:", err);
-            socket.emit('notify', { m: "FAILED_TO_JOIN_ROOM", type: "error" });
+            console.error("[JOIN_ROOM_ERROR]", err);
         }
     });
 
-    socket.on('send_msg', async (payload) => {
+    // SEND MESSAGE - FIXED with proper roomName
+    socket.on('send_msg', async (p) => {
         try {
-            if (!socket.data?.username || !payload?.room || !payload?.text?.trim()) return;
+            if (!socket.data.username || !p.room || !p.text?.trim()) return;
 
-            const message = new Message({
-                room: payload.room,
-                roomName: payload.roomName || payload.room,
+            const user = await User.findOne({ username: socket.data.username });
+            const isVip = user?.isVip || false;
+
+            let finalRoomName = p.roomName || p.room;
+
+            // Ensure DM shows the OTHER user's name
+            if (p.room.startsWith('DM_')) {
+                const parts = p.room.split('_').slice(1);
+                const otherUser = parts.find(u => u !== socket.data.username);
+                if (otherUser) finalRoomName = otherUser;
+            }
+
+            const msg = new Message({
+                room: p.room,
+                roomName: finalRoomName,
                 sender: socket.data.username,
-                text: payload.text.trim()
+                text: p.text.trim(),
+                isVip
             });
 
-            await message.save();
+            await msg.save();
 
-            // Broadcast to room
-            io.to(payload.room).emit('new_msg', message);
-        } catch (err) {
-            console.error("Send message error:", err);
-            socket.emit('notify', { m: "MESSAGE_DELIVERY_FAILED", type: "error" });
-        }
-    });
+            io.to(p.room).emit('new_msg', msg);
 
-    socket.on('get_group_meta', async (roomId) => {
-        try {
-            const group = await Group.findOne({ roomId });
-            if (group) socket.emit('group_meta_res', group);
+            console.log(`[MSG] ${socket.data.username} → ${p.room}`);
         } catch (err) {
-            console.error("Get group meta error:", err);
+            console.error("[SEND_MSG_ERROR]", err);
         }
     });
 
@@ -236,6 +227,7 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(3000, () => {
-    console.log('>>> [STABLE_SERVER_PORT_3000] DISCHAT_OS v2.0 ONLINE');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`>>> [DISCHAT v2.9] Server running on port ${PORT}`);
 });
