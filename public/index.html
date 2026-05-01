@@ -38,18 +38,19 @@
                 <button class="gate-btn outline mobile-only" style="width:50px; padding:0.5rem;" onclick="toggleSide()">[X]</button>
             </div>
 
-            <div style="padding:1rem; position:relative;">
+            <div style="padding:1rem; position:relative; border-bottom:1px solid var(--border);">
                 <input id="net-search" placeholder="SEARCH_NET..." oninput="handleSearch()" class="gate-input" style="margin:0;">
                 <div id="search-drop" class="search-results"></div>
             </div>
 
-            <div style="flex:1; overflow-y:auto;">
+            <!-- VETERAN FIX: Dedicated scrollable wrapper for the sidebar lists -->
+            <div class="sidebar-scroll" style="flex:1; overflow-y:auto; overflow-x:hidden;">
                 <div style="color:var(--neon); padding:1rem 1.5rem 0.5rem; font-size:0.8rem; opacity:0.6;">_GLOBAL</div>
                 <div class="nav-item" onclick="joinRoom('global', 'GLOBAL CHAT')">[#] GLOBAL CHAT</div>
                 
                 <div style="display:flex; justify-content:space-between; padding:1.5rem 1.5rem 0.5rem; color:var(--neon); font-size:0.8rem; opacity:0.6;">
                     <span>_CLUSTERS</span>
-                    <span onclick="openCreateGroupModal()" style="cursor:pointer; font-weight:bold;">[+]</span>
+                    <span onclick="openCreateGroupModal()" style="cursor:pointer; font-weight:bold; padding: 0 5px;">[+]</span>
                 </div>
                 <div id="cluster-list"></div>
 
@@ -64,7 +65,7 @@
                     <span></span><span></span><span></span>
                 </div>
                 <div onclick="openProfile('room')" style="cursor:pointer; font-size:1.2rem; font-weight:bold; flex:1;">
-                    <span style="color:var(--neon)">//</span> 
+                    <span style="color:var(--neon)">?</span> 
                     <span id="active-room">STANDBY</span>
                 </div>
             </header>

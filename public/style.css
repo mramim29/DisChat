@@ -23,6 +23,7 @@ body {
     overflow: hidden;
     font-size: 18px;
     -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
 }
 
 /* CRT Scanlines */
@@ -32,21 +33,24 @@ body {
     pointer-events: none;
     z-index: 9999;
     background: 
-        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%),
-        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 112, 0.03));
-    background-size: 100% 4px, 3px 100%;
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.18) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 80, 255, 0.04));
+    background-size: 100% 4px, 4px 100%;
+    mix-blend-mode: overlay;
 }
 
-/* ==================== TOASTS ==================== */
+/* ==================== TOASTS (VETERAN FIX: Master Z-Index) ==================== */
 #toast-bin {
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 10001;
+    /* Guaranteed override of scanlines and modal overlays */
+    z-index: 100000; 
     display: flex;
     flex-direction: column;
     gap: 10px;
     max-width: 340px;
+    pointer-events: none; /* Let clicks pass through empty space */
 }
 
 .notification-toast {
@@ -54,23 +58,27 @@ body {
     border: 1px solid var(--neon);
     border-left: 4px solid var(--neon);
     padding: 1rem 1.5rem;
-    animation: slideIn 0.3s ease forwards;
-    box-shadow: 0 5px 25px rgba(0,0,0,0.8);
+    animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    box-shadow: 0 5px 25px rgba(0,0,0,0.8), inset 0 0 10px var(--neon-dim);
     color: #c9d1d9;
     word-break: break-word;
+    pointer-events: auto; /* Re-enable clicks on the toast itself */
+    font-size: 0.85rem;
+    line-height: 1.4;
 }
 
 .notification-toast.error {
     border-color: var(--danger);
     border-left-color: var(--danger);
+    box-shadow: 0 5px 25px rgba(0,0,0,0.8), inset 0 0 10px rgba(255,0,85,0.15);
 }
 
 @keyframes slideIn {
-    from { transform: translateX(150%); opacity: 0; }
+    from { transform: translateX(120%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
 }
 
-/* ==================== MODALS (Fixed Closing + Scrollable) ==================== */
+/* ==================== MODALS ==================== */
 .modal-bg {
     position: fixed;
     inset: 0;
@@ -78,7 +86,7 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 5000;
+    z-index: 50000; /* Ensure modals exist below toasts but above UI */
 }
 
 .gate-panel {
@@ -110,6 +118,7 @@ body {
     margin-bottom: 2rem;
     letter-spacing: 8px;
     font-weight: bold;
+    text-shadow: 0 0 10px var(--neon-dim);
 }
 
 .gate-input {
@@ -179,7 +188,7 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 1000;
-    transition: 0.3s ease;
+    transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .viewport {
@@ -261,6 +270,7 @@ body {
 .nav-item:hover {
     background: var(--neon-dim);
     color: var(--neon);
+    padding-left: 1.8rem; /* Dynamic interaction feedback */
 }
 
 /* Avatar */
@@ -335,8 +345,9 @@ body {
     background: var(--neon-dim);
 }
 
-
-
+.msg-bubble.me.bubble .bubble-content {
+    border-radius: 22px 22px 6px 22px; /* Alternate for sender */
+}
 
 /* Hamburger */
 .hamburger {
@@ -347,6 +358,11 @@ body {
     margin-right: 12px;
     border: 1px solid var(--neon-dim);
     display: none;
+    transition: 0.2s;
+}
+
+.hamburger:hover {
+    background: var(--neon-dim);
 }
 
 .hamburger span {
@@ -356,7 +372,36 @@ body {
     background: var(--neon);
 }
 
-/* ==================== MOBILE RESPONSIVENESS (Fixed Stretching) ==================== */
+/* ==================== VETERAN FIX: SCROLLBARS ==================== */
+/* Unified elegant scrollbar architecture */
+.chat-flow::-webkit-scrollbar,
+.search-results::-webkit-scrollbar,
+.gate-panel::-webkit-scrollbar,
+.sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-flow::-webkit-scrollbar-track,
+.search-results::-webkit-scrollbar-track,
+.gate-panel::-webkit-scrollbar-track,
+.sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-flow::-webkit-scrollbar-thumb,
+.search-results::-webkit-scrollbar-thumb,
+.gate-panel::-webkit-scrollbar-thumb,
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.2);
+    border-radius: 10px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover,
+.chat-flow::-webkit-scrollbar-thumb:hover {
+    background: var(--neon-dim);
+}
+
+/* ==================== MOBILE RESPONSIVENESS ==================== */
 @media (max-width: 768px) {
     body { font-size: 16px; }
     
@@ -395,7 +440,7 @@ body {
     }
     
     .msg-bubble {
-        max-width: 88%;
+        max-width: 90%;
     }
     
     .gate-panel {
@@ -404,27 +449,10 @@ body {
     }
 }
 
-/* Scrollbars */
-.chat-flow::-webkit-scrollbar,
-.search-results::-webkit-scrollbar,
-.gate-panel::-webkit-scrollbar {
-    width: 6px;
-}
-
-.chat-flow::-webkit-scrollbar-thumb,
-.search-results::-webkit-scrollbar-thumb,
-.gate-panel::-webkit-scrollbar-thumb {
-    background: var(--neon-dim);
-    border-radius: 10px;
-}
-
 .mobile-only {
     display: none;
 }
 
-body {
-    overscroll-behavior: none;
-}
 /* Enhanced Modal Close Button */
 #modal-box button[onclick*="closeModal"] {
     z-index: 10;
@@ -432,9 +460,10 @@ body {
 }
 
 #modal-box button[onclick*="closeModal"]:hover {
-    color: var(--danger);
+    color: var(--danger) !important;
     transform: scale(1.2);
 }
+
 /* ==================== VIP EFFECTS ==================== */
 .vip-message .bubble-content {
     position: relative;
@@ -442,56 +471,43 @@ body {
     transition: all 0.3s ease;
 }
 
-/* Neon Glow - Light */
 .vip-neon .bubble-content {
     animation: vip-neon-light 2s ease-in-out infinite alternate;
-    box-shadow: 0 0 15px #ff00ff, 0 0 30px rgba(255, 0, 255, 0.6);
+    box-shadow: 0 0 15px #ff00ff, 0 0 30px rgba(255, 0, 255, 0.3);
 }
 
 @keyframes vip-neon-light {
-    from { box-shadow: 0 0 12px #ff00ff; }
-    to   { box-shadow: 0 0 25px #ff00ff, 0 0 45px rgba(255, 0, 255, 0.8); }
+    from { box-shadow: 0 0 8px #ff00ff; }
+    to   { box-shadow: 0 0 20px #ff00ff, 0 0 35px rgba(255, 0, 255, 0.5); }
 }
 
-/* Fire Effect - Optimized */
 .vip-fire .bubble-content {
     animation: vip-fire-light 1.8s ease-in-out infinite alternate;
-    box-shadow: 0 0 20px #ff8800, 0 0 35px rgba(255, 136, 0, 0.7);
+    box-shadow: 0 0 20px #ff8800, 0 0 35px rgba(255, 136, 0, 0.4);
 }
 
 @keyframes vip-fire-light {
     from { filter: brightness(1) hue-rotate(-5deg); }
-    to   { filter: brightness(1.25) hue-rotate(8deg); }
+    to   { filter: brightness(1.2) hue-rotate(8deg); }
 }
 
-/* Cyber Pulse - Light */
 .vip-pulse .bubble-content {
     animation: vip-pulse-light 2.2s ease-in-out infinite;
-    box-shadow: 0 0 18px #00ffff, 0 0 40px rgba(0, 255, 255, 0.6);
+    box-shadow: 0 0 18px #00ffff, 0 0 40px rgba(0, 255, 255, 0.4);
 }
 
 @keyframes vip-pulse-light {
-    0%, 100% { box-shadow: 0 0 15px #00ffff; }
-    50%      { box-shadow: 0 0 35px #00ffff, 0 0 55px #ff00ff; }
+    0%, 100% { box-shadow: 0 0 10px #00ffff; }
+    50%      { box-shadow: 0 0 25px #00ffff, 0 0 45px #ff00ff; }
 }
 
-/* Off Effect */
 .vip-off .bubble-content {
     border-color: #ff00ff !important;
-    box-shadow: 0 0 12px #ff00ff;
+    box-shadow: 0 0 8px #ff00ff;
 }
-
-/* VIP Notification */
-.notification-toast.error {
-    border-left-color: #ff00ff;
-    box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
-}
-
-/* Enhanced scanlines + subtle CRT */
-.scanlines {
-    background: 
-        linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.18) 50%),
-        linear-gradient(90deg, rgba(255,0,0,0.04), rgba(0,255,0,0.02), rgba(0,80,255,0.04));
-    background-size: 100% 4px, 4px 100%;
-    mix-blend-mode: overlay;
+/* [ADD TO style.css] */
+#cluster-list, #dm-list {
+    display: flex;
+    flex-direction: column;
+    min-height: 10px; /* Ensures container exists for renderNode */
 }

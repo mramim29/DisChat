@@ -1,4 +1,4 @@
-// server.js - FULLY FIXED & PROFESSIONAL (May 2026)
+// server.js - FULLY FIXED & PROFESSIONAL (ENTERPRISE ARCHITECTURE)
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -49,7 +49,7 @@ const Message = mongoose.model('Message', new mongoose.Schema({
 
 // ====================== SOCKET EVENTS ======================
 io.on('connection', (socket) => {
-    console.log(`[SOCKET] Client connected: ${socket.id}`);
+    console.log(`[NET] Port opened: ${socket.id}`);
 
     // AUTH
     socket.on('login', async (data) => {
@@ -62,6 +62,15 @@ io.on('connection', (socket) => {
             socket.data.username = user.username;
             socket.data.isVip = user.isVip;
 
+            // VETERAN FIX: The Pub/Sub Lifeline.
+            // Instantly wire the user into ALL their database-persisted socket channels upon connection.
+            socket.join('global'); 
+            if (user.groups && user.groups.length > 0) {
+                user.groups.forEach(g => {
+                    if (g && g.roomId) socket.join(g.roomId);
+                });
+            }
+
             socket.emit('login_success', { 
                 username: user.username, 
                 groups: user.groups || [],
@@ -69,7 +78,7 @@ io.on('connection', (socket) => {
             });
         } catch (err) {
             console.error("[LOGIN_ERROR]", err);
-            socket.emit('notify', { m: "LOGIN_ERROR", type: "error" });
+            socket.emit('notify', { m: "SERVER_HANDSHAKE_ERROR", type: "error" });
         }
     });
 
@@ -131,34 +140,40 @@ io.on('connection', (socket) => {
 
             await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: groupRef } });
 
+            // Ensure the creator physically joins the socket channel
+            socket.join(roomId);
+
             socket.emit('cluster_joined', groupRef);
-            socket.emit('notify', { m: `Cluster "${data.groupName}" created`, type: "success" });
+            socket.emit('notify', { m: `Cluster "${data.groupName}" established`, type: "success" });
         } catch (err) {
             console.error("[CREATE_CLUSTER_ERROR]", err);
             socket.emit('notify', { m: "CLUSTER_CREATION_FAILED", type: "error" });
         }
     });
 
-    // START DM - FIXED
+    // START DM
     socket.on('start_dm', async ({ target, roomId, roomName }) => {
         try {
-            if (!socket.data.username || target === socket.data.username) return;
+            if (!socket.data.username || target.toLowerCase() === socket.data.username.toLowerCase()) return;
 
-            const dmRef = { roomId, groupName: roomName, isDM: true };
+            // VETERAN FIX: Asymmetric saving. 
+            // Save the exact correct opponent name into each respective user's array.
+            const senderRef = { roomId, groupName: target, isDM: true };
+            const receiverRef = { roomId, groupName: socket.data.username, isDM: true };
 
-            // Add to both users
-            await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: dmRef } });
-            await User.updateOne({ username: target.toLowerCase(), isApproved: true }, { $addToSet: { groups: dmRef } });
+            await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: senderRef } });
+            await User.updateOne({ username: target.toLowerCase(), isApproved: true }, { $addToSet: { groups: receiverRef } });
 
+            // Subscribe initiator immediately
             socket.join(roomId);
-            socket.emit('dm_started', dmRef);
+            socket.emit('dm_started', { ...senderRef, initiatedByMe: true });
 
-            // Notify target user if online
+            // If the target node is online, forcibly subscribe them to the new channel
             for (const [_, client] of io.sockets.sockets) {
                 if (client.data.username === target.toLowerCase()) {
-                    client.emit('dm_started', dmRef);
                     client.join(roomId);
-                    break;
+                    // Pass initiatedByMe: false so their client doesn't yank their screen to the new DM
+                    client.emit('dm_started', { ...receiverRef, initiatedByMe: false });
                 }
             }
         } catch (err) {
@@ -166,28 +181,43 @@ io.on('connection', (socket) => {
         }
     });
 
-    // JOIN ROOM
-    socket.on('join_room', async (roomId) => {
-        try {
-            if (!roomId || !socket.data.username) return;
+    // JOIN ROOM (History Retrieval)
+    // [CHANGE IN server.js] - Updated join_room for auto-persistence
+socket.on('join_room', async (roomId) => {
+    try {
+        if (!roomId || !socket.data.username) return;
 
-            Array.from(socket.rooms).forEach(r => {
-                if (r !== socket.id && r !== roomId && r !== 'global') socket.leave(r);
-            });
+        // 1. Physically join the socket channel
+        socket.join(roomId);
 
-            socket.join(roomId);
-
-            const history = await Message.find({ room: roomId })
-                .sort({ timestamp: 1 })
-                .limit(150);
-
-            socket.emit('chat_history', history);
-        } catch (err) {
-            console.error("[JOIN_ROOM_ERROR]", err);
+        // 2. VETERAN FIX: PERSISTENCE LOGIC
+        // If joining a Cluster from search, save it to the user's permanent list
+        if (roomId.startsWith('CLUSTER_')) {
+            const groupData = await Group.findOne({ roomId });
+            if (groupData) {
+                const groupRef = { 
+                    roomId: groupData.roomId, 
+                    groupName: groupData.groupName, 
+                    isDM: false 
+                };
+                // Add to User's group list and Group's member list simultaneously
+                await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: groupRef } });
+                await Group.updateOne({ roomId }, { $addToSet: { members: socket.data.username } });
+            }
         }
-    });
 
-    // SEND MESSAGE - FIXED with proper roomName
+        // 3. Fetch History
+        const history = await Message.find({ room: roomId })
+            .sort({ timestamp: 1 })
+            .limit(150);
+
+        socket.emit('chat_history', history);
+    } catch (err) {
+        console.error("[JOIN_ROOM_ERROR]", err);
+    }
+});
+
+    // SEND MESSAGE
     socket.on('send_msg', async (p) => {
         try {
             if (!socket.data.username || !p.room || !p.text?.trim()) return;
@@ -197,10 +227,10 @@ io.on('connection', (socket) => {
 
             let finalRoomName = p.roomName || p.room;
 
-            // Ensure DM shows the OTHER user's name
+            // Strict server-side name evaluation for DB persistence
             if (p.room.startsWith('DM_')) {
                 const parts = p.room.split('_').slice(1);
-                const otherUser = parts.find(u => u !== socket.data.username);
+                const otherUser = parts.find(u => u.toLowerCase() !== socket.data.username.toLowerCase());
                 if (otherUser) finalRoomName = otherUser;
             }
 
@@ -214,20 +244,21 @@ io.on('connection', (socket) => {
 
             await msg.save();
 
+            // Broadcast to all sockets listening in the room
             io.to(p.room).emit('new_msg', msg);
 
-            console.log(`[MSG] ${socket.data.username} → ${p.room}`);
+            console.log(`[MSG_TRANSIT] ${socket.data.username} --> [${p.room}]`);
         } catch (err) {
             console.error("[SEND_MSG_ERROR]", err);
         }
     });
 
     socket.on('disconnect', () => {
-        console.log(`[SOCKET] Client disconnected: ${socket.id}`);
+        console.log(`[NET] Port closed: ${socket.id}`);
     });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`>>> [DISCHAT v2.9] Server running on port ${PORT}`);
+    console.log(`>>> [DISCHAT_CORE_v3.0] Server initialized on port ${PORT}`);
 });
