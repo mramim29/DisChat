@@ -39,18 +39,17 @@ body {
     mix-blend-mode: overlay;
 }
 
-/* ==================== TOASTS (VETERAN FIX: Master Z-Index) ==================== */
+/* ==================== TOASTS ==================== */
 #toast-bin {
     position: fixed;
     top: 20px;
     right: 20px;
-    /* Guaranteed override of scanlines and modal overlays */
     z-index: 100000; 
     display: flex;
     flex-direction: column;
     gap: 10px;
     max-width: 340px;
-    pointer-events: none; /* Let clicks pass through empty space */
+    pointer-events: none;
 }
 
 .notification-toast {
@@ -62,7 +61,7 @@ body {
     box-shadow: 0 5px 25px rgba(0,0,0,0.8), inset 0 0 10px var(--neon-dim);
     color: #c9d1d9;
     word-break: break-word;
-    pointer-events: auto; /* Re-enable clicks on the toast itself */
+    pointer-events: auto;
     font-size: 0.85rem;
     line-height: 1.4;
 }
@@ -86,7 +85,7 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 50000; /* Ensure modals exist below toasts but above UI */
+    z-index: 50000;
 }
 
 .gate-panel {
@@ -99,7 +98,6 @@ body {
     border: 1px solid var(--neon);
     box-shadow: 0 0 40px var(--neon-dim);
     clip-path: polygon(5% 0, 100% 0, 100% 95%, 95% 100%, 0 100%, 0 5%);
-    scrollbar-width: thin;
 }
 
 /* ==================== LOGIN GATE ==================== */
@@ -189,6 +187,7 @@ body {
     flex-direction: column;
     z-index: 1000;
     transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
 }
 
 .viewport {
@@ -197,8 +196,37 @@ body {
     height: 100dvh;
     background: #000;
     overflow: hidden;
+    position: relative;
 }
 
+/* =============== SIDEBAR SCROLLING =============== */
+.sidebar-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 1rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.3);
+    border-radius: 10px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--neon-dim);
+}
+
+/* Chat Header - Restored to original style */
 .view-header {
     min-height: 70px;
     display: flex;
@@ -270,7 +298,7 @@ body {
 .nav-item:hover {
     background: var(--neon-dim);
     color: var(--neon);
-    padding-left: 1.8rem; /* Dynamic interaction feedback */
+    padding-left: 1.8rem;
 }
 
 /* Avatar */
@@ -334,22 +362,20 @@ body {
     max-width: 100%;
 }
 
-/* Bubble Style Variations */
 .msg-bubble.rect .bubble-content   { border-radius: 6px; }
 .msg-bubble.round .bubble-content  { border-radius: 16px; }
 .msg-bubble.bubble .bubble-content { border-radius: 22px 22px 22px 6px; }
 
-/* Me bubbles */
 .msg-bubble.me .bubble-content {
     border-color: var(--neon);
     background: var(--neon-dim);
 }
 
 .msg-bubble.me.bubble .bubble-content {
-    border-radius: 22px 22px 6px 22px; /* Alternate for sender */
+    border-radius: 22px 22px 6px 22px;
 }
 
-/* Hamburger */
+/* Hamburger + Close Button */
 .hamburger {
     cursor: pointer;
     flex-direction: column;
@@ -372,8 +398,7 @@ body {
     background: var(--neon);
 }
 
-/* ==================== VETERAN FIX: SCROLLBARS ==================== */
-/* Unified elegant scrollbar architecture */
+/* ==================== SCROLLBARS ==================== */
 .chat-flow::-webkit-scrollbar,
 .search-results::-webkit-scrollbar,
 .gate-panel::-webkit-scrollbar,
@@ -396,8 +421,8 @@ body {
     border-radius: 10px;
 }
 
-.sidebar-scroll::-webkit-scrollbar-thumb:hover,
-.chat-flow::-webkit-scrollbar-thumb:hover {
+.chat-flow::-webkit-scrollbar-thumb:hover,
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--neon-dim);
 }
 
@@ -453,22 +478,10 @@ body {
     display: none;
 }
 
-/* Enhanced Modal Close Button */
-#modal-box button[onclick*="closeModal"] {
-    z-index: 10;
-    transition: all 0.2s;
-}
-
-#modal-box button[onclick*="closeModal"]:hover {
-    color: var(--danger) !important;
-    transform: scale(1.2);
-}
-
-/* ==================== VIP EFFECTS ==================== */
+/* VIP EFFECTS */
 .vip-message .bubble-content {
     position: relative;
     border-color: #ff00ff !important;
-    transition: all 0.3s ease;
 }
 
 .vip-neon .bubble-content {
@@ -501,13 +514,8 @@ body {
     50%      { box-shadow: 0 0 25px #00ffff, 0 0 45px #ff00ff; }
 }
 
-.vip-off .bubble-content {
-    border-color: #ff00ff !important;
-    box-shadow: 0 0 8px #ff00ff;
-}
-/* [ADD TO style.css] */
+/* Sidebar Lists */
 #cluster-list, #dm-list {
     display: flex;
     flex-direction: column;
-    min-height: 10px; /* Ensures container exists for renderNode */
 }

@@ -10,7 +10,6 @@ let bubbleStyle = localStorage.getItem('dischat-bubble') || 'rect';
 let vipEffect = localStorage.getItem('dischat-vipeffect') || 'neon';
 
 // ====================== UTILITIES ======================
-// VETERAN FIX: HTML Entity Escaping to prevent DOM-based XSS attacks.
 function escapeHTML(str) {
     if (!str) return "";
     return str.replace(/[&<>'"]/g, tag => ({
@@ -38,7 +37,6 @@ function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomNa
         };
     }
     bin.appendChild(t);
-    // VETERAN FIX: Ensure notifications self-destruct cleanly to prevent DOM bloat
     setTimeout(() => {
         if (t.parentNode === bin) bin.removeChild(t);
     }, 7000);
@@ -105,7 +103,6 @@ function createCluster() {
 function getDMOtherUser(roomId) {
     if (!roomId || !roomId.startsWith('DM_')) return null;
     const parts = roomId.split('_').slice(1);
-    // VETERAN FIX: Case-insensitive comparison ensuring robust name extraction
     return parts.find(u => u.toLowerCase() !== me.toLowerCase()) || null;
 }
 
@@ -138,9 +135,30 @@ function joinRoom(id, name) {
     document.getElementById('active-room').innerText = curRoomName;
     document.getElementById('msg-flow').innerHTML = "";
 
-    // The server handles sending history. Background subscriptions remain intact.
     socket.emit('join_room', id);
-    if (window.innerWidth < 768) toggleSide();
+    
+    // Close sidebar on mobile when joining a room
+    if (window.innerWidth < 768) {
+        toggleSide();
+    }
+}
+
+// Close sidebar when clicking on chat area (mobile)
+function closeSidebarOnChatClick() {
+    const viewport = document.querySelector('.viewport');
+    if (viewport) {
+        viewport.addEventListener('click', (e) => {
+            // Prevent closing when clicking inside input or header
+            if (e.target.closest('.input-bay') || e.target.closest('.view-header')) return;
+            
+            if (window.innerWidth < 768) {
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                }
+            }
+        });
+    }
 }
 
 function appendMsg(m) {
@@ -154,7 +172,6 @@ function appendMsg(m) {
 
     const vipTag = m.isVip ? ' ★VIP' : '';
     
-    // VETERAN FIX: Hardened HTML Escaping application on message rendering
     const safeSender = escapeHTML(m.sender);
     const safeText = escapeHTML(m.text);
 
@@ -250,7 +267,6 @@ socket.on('search_results', ({ users, groups }) => {
 function startDM(username) {
     if (username.toLowerCase() === me.toLowerCase()) return showNotify("Self-transmission loop blocked", "SYSTEM", "error");
 
-    // Standardize roomId generation
     const roomId = `DM_${[me.toLowerCase(), username.toLowerCase()].sort().join('_')}`;
     const roomName = username;
 
@@ -309,7 +325,6 @@ function changeVipEffect(effect) {
     vipEffect = effect;
     localStorage.setItem('dischat-vipeffect', effect);
     renderUserProfile();
-    // Re-render chat
     if (curRoom) socket.emit('join_room', curRoom);
 }
 
@@ -324,7 +339,6 @@ function changeBubbleStyle(style) {
     bubbleStyle = style;
     localStorage.setItem('dischat-bubble', style);
     renderUserProfile();
-    // Re-render chat
     if (curRoom) socket.emit('join_room', curRoom);
 }
 
@@ -379,7 +393,6 @@ socket.on('login_success', (d) => {
     document.getElementById('app').style.display = 'grid';
     document.getElementById('nav-avatar').innerText = me[0]?.toUpperCase() || '?';
 
-    // Clear existing DOM lists on successful relogin
     document.getElementById('cluster-list').innerHTML = '';
     document.getElementById('dm-list').innerHTML = '';
 
@@ -396,30 +409,23 @@ socket.on('cluster_joined', g => {
 
 socket.on('dm_started', g => { 
     renderNode(g); 
-    // Only auto-join if the user initiated it
     if(g.initiatedByMe) {
         joinRoom(g.roomId, g.groupName); 
     }
 });
 
-// VETERAN FIX: Flawless Pub/Sub Notification Routing
 socket.on('new_msg', m => {
-    console.log(`[SYS] Packet received on port [${m.room}] from [${m.sender}]`);
-
-    // Case 1: User is actively looking at the room where the message occurred.
     if (m.room === curRoom) {
         appendMsg(m);
-        return; // Do not notify, user is actively engaged
+        return;
     }
 
-    // Case 2: User is looking elsewhere. Trigger the HUD notification.
     let displayName = m.roomName || m.room;
     if (m.room && m.room.startsWith('DM_')) {
         const otherUser = getDMOtherUser(m.room);
         if (otherUser) displayName = otherUser;
     }
 
-    // Render the notification HUD explicitly
     showNotify(
         `you have a message from ${escapeHTML(m.sender)} in ${escapeHTML(displayName)}`, 
         m.isVip ? "VIP DIRECTIVE" : "INCOMING PACKET", 
@@ -430,7 +436,7 @@ socket.on('new_msg', m => {
 });
 
 socket.on('chat_history', logs => {
-    document.getElementById('msg-flow').innerHTML = ""; // Clear flow before appending history
+    document.getElementById('msg-flow').innerHTML = "";
     logs.forEach(appendMsg);
 });
 
@@ -450,10 +456,12 @@ window.onload = () => {
     tryAutoLogin();
     setTimeout(() => document.getElementById('m-in')?.focus(), 800);
     
-    // Close search dropdown on outside click
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#net-search') && !e.target.closest('#search-drop')) {
             document.getElementById('search-drop').style.display = 'none';
         }
     });
+
+    // Close sidebar when tapping on chat area (mobile)
+    closeSidebarOnChatClick();
 };
