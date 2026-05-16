@@ -10,6 +10,11 @@
     <div class="scanlines"></div>
     <div id="toast-bin"></div>
 
+    <!-- Hidden Audio for Notifications -->
+    <audio id="notification-sound" preload="auto">
+        <source src="\notificaion\notification.mp3" type="audio/mpeg">
+    </audio>
+
     <!-- AUTH LAYER -->
     <div id="auth-layer" class="gate-wrapper">
         <div class="gate-panel">
@@ -43,7 +48,6 @@
                 <div id="search-drop" class="search-results"></div>
             </div>
 
-            <!-- VETERAN FIX: Dedicated scrollable wrapper for the sidebar lists -->
             <div class="sidebar-scroll" style="flex:1; overflow-y:auto; overflow-x:hidden;">
                 <div style="color:var(--neon); padding:1rem 1.5rem 0.5rem; font-size:0.8rem; opacity:0.6;">_GLOBAL</div>
                 <div class="nav-item" onclick="joinRoom('global', 'GLOBAL CHAT')">[#] GLOBAL CHAT</div>

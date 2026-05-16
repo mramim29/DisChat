@@ -9,6 +9,34 @@ let currentTheme = localStorage.getItem('dischat-theme') || 'cyan';
 let bubbleStyle = localStorage.getItem('dischat-bubble') || 'rect';
 let vipEffect = localStorage.getItem('dischat-vipeffect') || 'neon';
 
+// ====================== NOTIFICATION & AUDIO SETUP ======================
+const notificationSound = document.getElementById('notification-sound');
+
+function playNotificationSound() {
+    if (notificationSound) {
+        notificationSound.currentTime = 0;
+        notificationSound.play().catch(() => {}); // Ignore autoplay restrictions
+    }
+}
+
+function showSystemNotification(title, body, roomId = null, roomName = null) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+    const notification = new Notification(title, {
+        body: body,
+        icon: "/favicon.ico", // Optional: you can add a proper icon later
+        tag: roomId || "dischat-global" // Prevents duplicate notifications
+    });
+
+    notification.onclick = () => {
+        window.focus();
+        if (roomId) {
+            joinRoom(roomId, roomName || roomId);
+        }
+        notification.close();
+    };
+}
+
 // ====================== UTILITIES ======================
 function escapeHTML(str) {
     if (!str) return "";
@@ -40,8 +68,19 @@ function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomNa
     setTimeout(() => {
         if (t.parentNode === bin) bin.removeChild(t);
     }, 7000);
+
+    // ==================== SYSTEM NOTIFICATION + AUDIO LOGIC ====================
+    const shouldNotify = 
+        document.visibilityState !== 'visible' || 
+        (roomId && roomId !== curRoom);
+
+    if (shouldNotify) {
+        playNotificationSound();
+        showSystemNotification(title, text, roomId, roomName);
+    }
 }
 
+// ====================== AUTH ======================
 function auth(type) {
     const u = document.getElementById('l-u').value.trim();
     const p = document.getElementById('l-p').value.trim();
@@ -60,7 +99,6 @@ function tryAutoLogin() {
     const savedPassword = localStorage.getItem('dischat_password');
     
     if (savedUsername && savedPassword) {
-        console.log("[SYSTEM] Executing Auto-Handshake for ID:", savedUsername);
         socket.emit('login', { username: savedUsername, password: savedPassword });
     }
 }
@@ -137,7 +175,6 @@ function joinRoom(id, name) {
 
     socket.emit('join_room', id);
     
-    // Close sidebar on mobile when joining a room
     if (window.innerWidth < 768) {
         toggleSide();
     }
@@ -148,14 +185,10 @@ function closeSidebarOnChatClick() {
     const viewport = document.querySelector('.viewport');
     if (viewport) {
         viewport.addEventListener('click', (e) => {
-            // Prevent closing when clicking inside input or header
             if (e.target.closest('.input-bay') || e.target.closest('.view-header')) return;
-            
             if (window.innerWidth < 768) {
                 const sidebar = document.getElementById('sidebar');
-                if (sidebar.classList.contains('active')) {
-                    sidebar.classList.remove('active');
-                }
+                if (sidebar.classList.contains('active')) sidebar.classList.remove('active');
             }
         });
     }
@@ -164,14 +197,12 @@ function closeSidebarOnChatClick() {
 function appendMsg(m) {
     const wrap = document.getElementById('msg-flow');
     const isMe = m.sender.toLowerCase() === me.toLowerCase();
-
     const vipClass = m.isVip ? `vip-message vip-${vipEffect}` : '';
 
     const div = document.createElement('div');
     div.className = `msg-bubble ${isMe ? 'me' : ''} ${bubbleStyle} ${vipClass}`;
 
     const vipTag = m.isVip ? ' ★VIP' : '';
-    
     const safeSender = escapeHTML(m.sender);
     const safeText = escapeHTML(m.text);
 
@@ -198,11 +229,10 @@ function sendMsg() {
     }
 }
 
-// ====================== SEARCH ======================
+// ====================== SEARCH & DM ======================
 function handleSearch() {
     const query = document.getElementById('net-search').value.trim();
     const drop = document.getElementById('search-drop');
-    
     if (query.length < 2) {
         drop.style.display = 'none';
         return;
@@ -233,10 +263,7 @@ socket.on('search_results', ({ users, groups }) => {
             el.className = 'nav-item';
             el.style.padding = '10px 16px';
             el.innerHTML = `${escapeHTML(user.username)} ${user.isVip ? '<span style="color:#ff00ff;font-size:0.8em">★VIP</span>' : ''}`;
-            el.onclick = () => {
-                drop.style.display = 'none';
-                startDM(user.username);
-            };
+            el.onclick = () => { drop.style.display = 'none'; startDM(user.username); };
             drop.appendChild(el);
         });
     }
@@ -254,16 +281,12 @@ socket.on('search_results', ({ users, groups }) => {
             el.className = 'nav-item';
             el.style.padding = '10px 16px';
             el.innerHTML = escapeHTML(group.groupName);
-            el.onclick = () => {
-                drop.style.display = 'none';
-                joinRoom(group.roomId, group.groupName);
-            };
+            el.onclick = () => { drop.style.display = 'none'; joinRoom(group.roomId, group.groupName); };
             drop.appendChild(el);
         });
     }
 });
 
-// ====================== DM ======================
 function startDM(username) {
     if (username.toLowerCase() === me.toLowerCase()) return showNotify("Self-transmission loop blocked", "SYSTEM", "error");
 
@@ -383,6 +406,69 @@ function logout() {
     location.reload();
 }
 
+// (All other functions: changeTheme, changeBubbleStyle, etc. remain unchanged)
+function changeVipEffect(effect) {
+    vipEffect = effect;
+    localStorage.setItem('dischat-vipeffect', effect);
+    renderUserProfile();
+    if (curRoom) socket.emit('join_room', curRoom);
+}
+
+function changeTheme(theme) {
+    currentTheme = theme;
+    localStorage.setItem('dischat-theme', theme);
+    applyTheme(theme);
+    renderUserProfile();
+}
+
+function changeBubbleStyle(style) {
+    bubbleStyle = style;
+    localStorage.setItem('dischat-bubble', style);
+    renderUserProfile();
+    if (curRoom) socket.emit('join_room', curRoom);
+}
+
+function applyTheme(theme) {
+    const colors = { cyan: '#00f2ff', amber: '#ffcc00', matrix: '#00ff41' };
+    document.documentElement.style.setProperty('--neon', colors[theme] || '#00f2ff');
+}
+
+function showModal(content) {
+    const box = document.getElementById('modal-box');
+    box.innerHTML = `
+        <div style="position:relative; padding-right:45px;">
+            <button onclick="closeModal()" style="position:absolute; top:8px; right:15px; background:none; border:none; color:var(--neon); font-size:2.8rem; cursor:pointer;">&times;</button>
+            ${content}
+        </div>
+    `;
+    document.getElementById('modal-bg').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('modal-bg').style.display = 'none';
+}
+
+function openProfile(type) {
+    if (type === 'room') {
+        if (curRoom === 'global') showGlobalInfo();
+        else showNotify(`Current Stream: ${curRoomName}`, "Info", "info");
+    } else {
+        renderUserProfile();
+    }
+}
+
+function showGlobalInfo() {
+    showModal(`<h2 style="color:var(--neon)">GLOBAL CHAT</h2>
+        <p style="text-align:center; opacity:0.8; margin-top: 1rem; line-height:1.5;">Main public frequency broadcast channel.<br>All active nodes have access.</p>
+        <button class="gate-btn" onclick="closeModal()" style="margin-top: 2rem;">ACKNOWLEDGE</button>`);
+}
+
+function logout() {
+    localStorage.removeItem('dischat_username');
+    localStorage.removeItem('dischat_password');
+    location.reload();
+}
+
 // ====================== SOCKET EVENTS ======================
 socket.on('login_success', (d) => {
     me = d.username;
@@ -400,6 +486,11 @@ socket.on('login_success', (d) => {
 
     applyTheme(currentTheme);
     joinRoom('global', 'GLOBAL CHAT');
+
+    // Request Notification Permission
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
 });
 
 socket.on('cluster_joined', g => { 
@@ -409,12 +500,12 @@ socket.on('cluster_joined', g => {
 
 socket.on('dm_started', g => { 
     renderNode(g); 
-    if(g.initiatedByMe) {
-        joinRoom(g.roomId, g.groupName); 
-    }
+    if(g.initiatedByMe) joinRoom(g.roomId, g.groupName); 
 });
 
 socket.on('new_msg', m => {
+    console.log(`[SYS] Packet received on port [${m.room}] from [${m.sender}]`);
+
     if (m.room === curRoom) {
         appendMsg(m);
         return;
@@ -462,6 +553,5 @@ window.onload = () => {
         }
     });
 
-    // Close sidebar when tapping on chat area (mobile)
     closeSidebarOnChatClick();
 };
