@@ -24,8 +24,8 @@ function showSystemNotification(title, body, roomId = null, roomName = null) {
 
     const notification = new Notification(title, {
         body: body,
-        icon: "/favicon.ico", // Optional: you can add a proper icon later
-        tag: roomId || "dischat-global" // Prevents duplicate notifications
+        icon: "/favicon.ico", 
+        tag: roomId || "dischat-global" 
     });
 
     notification.onclick = () => {
@@ -69,7 +69,6 @@ function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomNa
         if (t.parentNode === bin) bin.removeChild(t);
     }, 7000);
 
-    // ==================== SYSTEM NOTIFICATION + AUDIO LOGIC ====================
     const shouldNotify = 
         document.visibilityState !== 'visible' || 
         (roomId && roomId !== curRoom);
@@ -78,6 +77,27 @@ function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomNa
         playNotificationSound();
         showSystemNotification(title, text, roomId, roomName);
     }
+}
+
+// ====================== MANUAL & ONBOARDING FLOW ======================
+function enterAuthentication() {
+    document.getElementById('manual-layer').style.display = 'none';
+    document.getElementById('auth-layer').style.display = 'flex';
+}
+
+function showUserManualModal() {
+    const html = `
+        <h2 style="color:var(--neon); text-align:center; margin-bottom:1.5rem;">USER_MANUAL</h2>
+        <div style="font-size:0.9rem; line-height:1.6; text-align:left; max-height:55vh; overflow-y:auto; padding-right:8px; color:#c9d1d9;">
+            <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">1. IDENTITY REGISTRATION:</strong> New nodes can use 'REGISTER_NEW_ID'. All requests are securely processed and require Admin confirmation before they can log in.</p>
+            <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">2. GLOBAL FREQUENCY:</strong> The <code style="color:var(--neon)">_GLOBAL</code> room is a master broadcast pipeline linked across all user terminals simultaneously.</p>
+            <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">3. CLUSTER ENCLAVES:</strong> Use the <span style="color:var(--neon); font-weight:bold;">[+]</span> toggle near _CLUSTERS to establish custom channels. Public channels are indexable via search, and Private channels are locked via password hash keying.</p>
+            <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">4. PEER LOGISTICS (DM):</strong> Execute search queries inside the <code style="color:var(--neon)">SEARCH_NET...</code> input field. Clicking a target operator opens a secure peer-to-peer chat session.</p>
+            <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">5. SYSTEM CALIBRATION:</strong> Click your avatar frame anytime to modify theme environments, message node geometries, or your specific VIP system aesthetics.</p>
+        </div>
+        <button class="gate-btn" onclick="closeModal()" style="margin-top:1.5rem;">DISMISS MANUAL</button>
+    `;
+    showModal(html);
 }
 
 // ====================== AUTH ======================
@@ -103,7 +123,7 @@ function tryAutoLogin() {
     }
 }
 
-// ====================== CREATE GROUP ======================
+// ====================== CREATE CLUSTER ======================
 function openCreateGroupModal() {
     const html = `
         <h2 style="color:var(--neon); text-align:center; margin-bottom:1rem;">CREATE NEW CLUSTER</h2>
@@ -180,7 +200,6 @@ function joinRoom(id, name) {
     }
 }
 
-// Close sidebar when clicking on chat area (mobile)
 function closeSidebarOnChatClick() {
     const viewport = document.querySelector('.viewport');
     if (viewport) {
@@ -297,7 +316,7 @@ function startDM(username) {
     document.getElementById('search-drop').style.display = 'none';
 }
 
-// ====================== PROFILE ======================
+// ====================== PROFILE MATRIX ======================
 function renderUserProfile() {
     let html = `
         <h2 style="color:var(--neon); text-align:center; margin-bottom:1.5rem;">USER PROFILE</h2>
@@ -406,75 +425,15 @@ function logout() {
     location.reload();
 }
 
-// (All other functions: changeTheme, changeBubbleStyle, etc. remain unchanged)
-function changeVipEffect(effect) {
-    vipEffect = effect;
-    localStorage.setItem('dischat-vipeffect', effect);
-    renderUserProfile();
-    if (curRoom) socket.emit('join_room', curRoom);
-}
-
-function changeTheme(theme) {
-    currentTheme = theme;
-    localStorage.setItem('dischat-theme', theme);
-    applyTheme(theme);
-    renderUserProfile();
-}
-
-function changeBubbleStyle(style) {
-    bubbleStyle = style;
-    localStorage.setItem('dischat-bubble', style);
-    renderUserProfile();
-    if (curRoom) socket.emit('join_room', curRoom);
-}
-
-function applyTheme(theme) {
-    const colors = { cyan: '#00f2ff', amber: '#ffcc00', matrix: '#00ff41' };
-    document.documentElement.style.setProperty('--neon', colors[theme] || '#00f2ff');
-}
-
-function showModal(content) {
-    const box = document.getElementById('modal-box');
-    box.innerHTML = `
-        <div style="position:relative; padding-right:45px;">
-            <button onclick="closeModal()" style="position:absolute; top:8px; right:15px; background:none; border:none; color:var(--neon); font-size:2.8rem; cursor:pointer;">&times;</button>
-            ${content}
-        </div>
-    `;
-    document.getElementById('modal-bg').style.display = 'flex';
-}
-
-function closeModal() {
-    document.getElementById('modal-bg').style.display = 'none';
-}
-
-function openProfile(type) {
-    if (type === 'room') {
-        if (curRoom === 'global') showGlobalInfo();
-        else showNotify(`Current Stream: ${curRoomName}`, "Info", "info");
-    } else {
-        renderUserProfile();
-    }
-}
-
-function showGlobalInfo() {
-    showModal(`<h2 style="color:var(--neon)">GLOBAL CHAT</h2>
-        <p style="text-align:center; opacity:0.8; margin-top: 1rem; line-height:1.5;">Main public frequency broadcast channel.<br>All active nodes have access.</p>
-        <button class="gate-btn" onclick="closeModal()" style="margin-top: 2rem;">ACKNOWLEDGE</button>`);
-}
-
-function logout() {
-    localStorage.removeItem('dischat_username');
-    localStorage.removeItem('dischat_password');
-    location.reload();
-}
-
-// ====================== SOCKET EVENTS ======================
+// ====================== SOCKET EVENT FLOWS ======================
 socket.on('login_success', (d) => {
     me = d.username;
     isVipUser = !!d.isVip;
     localStorage.setItem('dischat_username', me);
 
+    // CRITICAL FIX: Explicitly hide onboarding manual and offline layouts if present
+    if (document.getElementById('manual-layer')) document.getElementById('manual-layer').style.display = 'none';
+    if (document.getElementById('offline-overlay')) document.getElementById('offline-overlay').style.display = 'none';
     document.getElementById('auth-layer').style.display = 'none';
     document.getElementById('app').style.display = 'grid';
     document.getElementById('nav-avatar').innerText = me[0]?.toUpperCase() || '?';
@@ -485,9 +444,15 @@ socket.on('login_success', (d) => {
     if (d.groups) d.groups.forEach(renderNode);
 
     applyTheme(currentTheme);
-    joinRoom('global', 'GLOBAL CHAT');
 
-    // Request Notification Permission
+    // CRITICAL FIX: SMART RECONNCECTION RECOVERY ROUTINE
+    // Instead of resetting to global chat, identify if the user was inside a custom room 
+    // and re-sync that specific room state to fetch all missed historical chat entries!
+    const activeRoomId = curRoom || 'global';
+    const activeRoomName = curRoomName || 'GLOBAL CHAT';
+    curRoom = ""; // Reset variable memory to bypass identical string blocking logic
+    joinRoom(activeRoomId, activeRoomName);
+
     if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
     }
@@ -519,7 +484,7 @@ socket.on('new_msg', m => {
 
     showNotify(
         `you have a message from ${escapeHTML(m.sender)} in ${escapeHTML(displayName)}`, 
-        m.isVip ? "VIP DIRECTIVE" : "INCOMING PACKET", 
+        m.isVip ? "VIP DIRECTIVE" : "INCOMING MESSAGE", 
         m.isVip ? "error" : "info", 
         m.room, 
         displayName
@@ -539,12 +504,29 @@ socket.on('auth_status', d => {
 
 socket.on('notify', d => showNotify(d.m, "SYSTEM", d.type || "info"));
 
+// ====================== CRITICAL FIX: NETWORK RESILIENCE STREAM ======================
+socket.on('connect', () => {
+    console.log("[NET] Backbone sync established successfully.");
+    if (document.getElementById('offline-overlay')) {
+        document.getElementById('offline-overlay').style.display = 'none';
+    }
+    // Triggers auto-reauthentication with stored local authorization keys if tab wakes up
+    tryAutoLogin();
+});
+
+socket.on('disconnect', () => {
+    console.log("[NET] Backbone connection lost.");
+    if (document.getElementById('offline-overlay')) {
+        document.getElementById('offline-overlay').style.display = 'flex';
+    }
+});
+
 function toggleSide() {
     document.getElementById('sidebar').classList.toggle('active');
 }
 
 window.onload = () => {
-    tryAutoLogin();
+    // Note: tryAutoLogin is now safely hooked up to the socket 'connect' event handler
     setTimeout(() => document.getElementById('m-in')?.focus(), 800);
     
     document.addEventListener('click', (e) => {
