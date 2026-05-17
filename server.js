@@ -247,7 +247,7 @@ socket.on('join_room', async (roomId) => {
             // Broadcast to all sockets listening in the room
             io.to(p.room).emit('new_msg', msg);
 
-            console.log(`[MSG_TRANSIT] ${socket.data.username} --> [${p.room}]`);
+            
         } catch (err) {
             console.error("[SEND_MSG_ERROR]", err);
         }
