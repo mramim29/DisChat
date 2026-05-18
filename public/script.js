@@ -210,12 +210,30 @@ function joinRoom(id, name) {
     const targetPreview = document.getElementById(`preview-${id}`);
     if (targetPreview) targetPreview.style.color = '#666';
 
-    // DYNAMIC TOGGLE VISIBILITY: Show [+ ADD NODE] only if it's a Cluster room
+    // UPDATED: RENDER DUEL ACTIONS IN BOTH CLUSTERS AND DIRECT PEERS
     const actionContainer = document.getElementById('header-actions');
     if (actionContainer) {
         if (id.startsWith('CLUSTER_')) {
+            // Displays both the cluster invite button and your new game launcher button side-by-side
+            actionContainer.innerHTML = `
+                <button class="gate-btn outline" onclick="promptClusterInvite()" style="margin: 0 8px 0 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; display: inline-block;">
+                    [+ ADD PEOPLE]
+                </button>
+                <button class="gate-btn outline" onclick="openTTTConfigModal()" style="margin: 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; border-color: #ffcc00; color: #ffcc00; display: inline-block;">
+                    [⚔️DUEL]
+                </button>
+            `;
+            actionContainer.style.display = 'block';
+        } else if (id.startsWith('DM_')) {
+            // Displays just the game launcher button inside individual direct peer chats
+            actionContainer.innerHTML = `
+                <button class="gate-btn outline" onclick="openTTTConfigModal()" style="margin: 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; border-color: #ffcc00; color: #ffcc00;">
+                    [⚔️DUEL]
+                </button>
+            `;
             actionContainer.style.display = 'block';
         } else {
+            // Hides actions entirely if navigating back into the main _GLOBAL room frequency
             actionContainer.style.display = 'none';
         }
     }
@@ -243,6 +261,84 @@ function closeSidebarOnChatClick() {
 // message logic with reply
 function appendMsg(m) {
     const wrap = document.getElementById('msg-flow');
+    
+    // ==================== FIX: STREAM TIMELINE HYDRATION DECODER INTERCEPT ====================
+    if (m.type === "TICTACTOE") {
+        const gameDiv = document.createElement('div');
+        gameDiv.className = "centered-game-matrix-node";
+        gameDiv.id = `game-node-${m.matchId}`;
+        
+        // Parse the persistent payload variables from backend logs if they exist
+        let savedState = null;
+        if (m.text && m.text.startsWith('{')) {
+            try { savedState = JSON.parse(m.text); } catch(e) { savedState = null; }
+        }
+
+        // Generate matrix layout components
+        gameDiv.innerHTML = `
+            <div class="ttt-scoreboard-frame">
+                <div class="ttt-system-title">TIC TAC TOE</div>
+                <div class="ttt-status-banner" id="ttt-status-${m.matchId}">LOADING...</div>
+                <div class="ttt-core-grid" id="ttt-grid-${m.matchId}">
+                    ${Array(9).fill(0).map((_, idx) => {
+                        let sign = (savedState && savedState.board) ? savedState.board[idx] : "";
+                        let disabledAttr = sign ? 'disabled class="ttt-cell occupied ' + sign.toLowerCase() + '"' : 'class="ttt-cell"';
+                        return `<button ${disabledAttr} onclick="submitGameMove('${m.matchId}', ${idx})" id="cell-${m.matchId}-${idx}">${sign}</button>`;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+        wrap.appendChild(gameDiv);
+
+        // If history contains records, run an instant UI hydration pass
+        if (savedState) {
+            setTimeout(() => {
+                const banner = document.getElementById(`ttt-status-${m.matchId}`);
+                if (!banner) return;
+                
+                const cleanMe = me.toLowerCase();
+                const pX = savedState.playerX.toLowerCase();
+                const pO = savedState.playerO.toLowerCase();
+
+                if (savedState.status === "ACTIVE") {
+                    if (pO === "enclave_challenger") {
+                        banner.innerText = `AWAITING CHALLENGER...`;
+                        banner.style.color = "#ffcc00";
+                    } else if (cleanMe !== pX && cleanMe !== pO) {
+                        disableAllMatchCells(m.matchId);
+                        banner.innerText = `WATCHING: @${pX.toUpperCase()} VS @${pO.toUpperCase()}`;
+                        banner.style.color = "#8b949e";
+                    } else {
+                        const activeUser = savedState.turn === "X" ? savedState.playerX : savedState.playerO;
+                        banner.innerText = `TURN: @${activeUser.toUpperCase()} (${savedState.turn})`;
+                        banner.style.color = "var(--neon)";
+                    }
+                } else if (savedState.status === "DRAW") {
+                    banner.innerText = `STATUS: ENGAGEMENT DRAW`;
+                    banner.style.color = "#8b949e";
+                    disableAllMatchCells(m.matchId);
+                } else if (savedState.status === "WON") {
+                    if (cleanMe === pX || cleanMe === pO) {
+                        const isWinnerMe = savedState.winner.toLowerCase() === cleanMe;
+                        banner.innerText = isWinnerMe ? `STATUS: YOU WON` : `STATUS: YOU LOST `;
+                        banner.style.color = isWinnerMe ? "#00ff41" : "var(--danger)";
+                    } else {
+                        banner.innerText = `MATCH OVER: @${savedState.winner.toUpperCase()} WINS!`;
+                        banner.style.color = "#ffcc00";
+                    }
+                    disableAllMatchCells(m.matchId);
+                } else if (savedState.status === "TIMEOUT") {
+                    banner.innerText = "DUEL CANCELLED: TIMEOUT";
+                    banner.style.color = "var(--danger)";
+                    disableAllMatchCells(m.matchId);
+                }
+            }, 50);
+        }
+        
+        wrap.scrollTop = wrap.scrollHeight;
+        return; 
+    }
+    
     const isMe = m.sender.toLowerCase() === me.toLowerCase();
     
     // Check if the message is a system notification notice
@@ -435,7 +531,53 @@ function handleSearch() {
     socket.emit('global_search', query);
 }
 
+// ====================== UNIFIED SEARCH INTENT ROUTER ENGINE ======================
 socket.on('search_results', ({ users, groups }) => {
+    // 1. Check if the Tic Tac Toe duel config dropdown is currently on-screen
+    const duelDrop = document.getElementById('ttt-duel-search-drop');
+    const isGameSearch = duelDrop && window.getComputedStyle(document.getElementById('ttt-target-filter-bay') || {}).display !== 'none';
+
+    if (isGameSearch) {
+        // ROUTE A: Handle updates intended for the Tic Tac Toe Duel Configuration Form
+        duelDrop.innerHTML = '';
+        duelDrop.style.display = 'block';
+
+        if (!users || users.length === 0) {
+            duelDrop.innerHTML = `<div style="padding:10px; color:#666; font-size:0.8rem; text-align:center;">No matching nodes</div>`;
+            return;
+        }
+
+        users.forEach(u => {
+            if (u.username.toLowerCase() === me.toLowerCase()) return; // Prevent challenging yourself
+
+            const div = document.createElement('div');
+            div.className = 'nav-item';
+            div.style.padding = '8px 12px';
+            div.style.fontSize = '0.85rem';
+            div.style.cursor = 'pointer';
+            div.textContent = u.username;
+
+            div.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const searchInput = document.getElementById('ttt-duel-search');
+                const hiddenTarget = document.getElementById('ttt-final-target-user');
+
+                if (searchInput) searchInput.value = u.username.toUpperCase();
+                if (hiddenTarget) {
+                    hiddenTarget.value = u.username.toLowerCase();
+                    console.log(`[TTT_SYSTEM] Target assigned: ${hiddenTarget.value}`);
+                }
+
+                duelDrop.style.display = 'none';
+            };
+            duelDrop.appendChild(div);
+        });
+        return; // Terminate execution pass so it doesn't leak into sidebar layout logic
+    }
+
+    // ROUTE B: Fallback to your standard Main App Sidebar Search layout tracking
     const drop = document.getElementById('search-drop');
     drop.innerHTML = '';
     drop.style.display = 'block';
@@ -970,3 +1112,243 @@ function scrollToTargetMessage(msgId) {
         showNotify("Target baseline transmission archived or inaccessible", "SYSTEM", "info");
     }
 }
+
+// ====================== EXTENDED USER-TO-USER GAME REGISTRY CONTROLLERS ======================
+function submitGameMove(matchId, index) {
+    socket.emit('make_move', { matchId, index });
+}
+
+let activeGameTimers = {};
+
+socket.on('match_updated', (match) => {
+    const statusBanner = document.getElementById(`ttt-status-${match._id}`);
+    if (!statusBanner) return;
+
+    if (activeGameTimers[match._id]) {
+        clearInterval(activeGameTimers[match._id]);
+        delete activeGameTimers[match._id];
+    }
+
+    match.board.forEach((sign, idx) => {
+        const cell = document.getElementById(`cell-${match._id}-${idx}`);
+        if (cell) {
+            cell.innerText = sign;
+            if (sign !== "") {
+                cell.disabled = true;
+                cell.classList.add('occupied', sign.toLowerCase());
+            }
+        }
+    });
+
+    const cleanMe = me.toLowerCase();
+    const pX = match.playerX.toLowerCase();
+    const pO = match.playerO.toLowerCase();
+
+    if (match.status === "ACTIVE" && pO === "enclave_challenger") {
+        let timeLeft = 15;
+        statusBanner.innerText = `WAITING FOR ACCEPTANCE... (${timeLeft}s)`;
+        statusBanner.style.color = "#ffcc00";
+
+        activeGameTimers[match._id] = setInterval(() => {
+            timeLeft--;
+            const currentBanner = document.getElementById(`ttt-status-${match._id}`);
+            if (currentBanner) {
+                currentBanner.innerText = `WAITING FOR ACCEPTANCE... (${timeLeft}s)`;
+                if (timeLeft <= 0) {
+                    clearInterval(activeGameTimers[match._id]);
+                    currentBanner.innerText = "DUEL TERMINATED: TARGET OFFLINE/TIMEOUT";
+                    currentBanner.style.color = "var(--danger)";
+                    disableAllMatchCells(match._id);
+                    socket.emit('match_timeout_close', { matchId: match._id });
+                }
+            }
+        }, 1000);
+        return;
+    }
+
+    if (match.status === "ACTIVE") {
+        if (cleanMe !== pX && cleanMe !== pO) {
+            disableAllMatchCells(match._id);
+            statusBanner.innerText = `WATCHING: @${pX.toUpperCase()} VS @${pO.toUpperCase()}`;
+            statusBanner.style.color = "#8b949e";
+            return;
+        }
+    }
+
+    if (match.status === "ACTIVE") {
+        const activeUser = match.turn === "X" ? match.playerX : match.playerO;
+        statusBanner.innerText = `TURN: @${activeUser.toUpperCase()} (${match.turn})`;
+        statusBanner.style.color = "var(--neon)";
+    } else if (match.status === "DRAW") {
+        statusBanner.innerText = `STATUS: ENGAGEMENT DRAW`;
+        statusBanner.style.color = "#8b949e";
+        disableAllMatchCells(match._id);
+    } else if (match.status === "WON") {
+        if (cleanMe === pX || cleanMe === pO) {
+            const isWinnerMe = match.winner.toLowerCase() === cleanMe;
+            statusBanner.innerText = isWinnerMe ? `STATUS: TRANSMISSION VICTORY SECURED` : `STATUS: CRITICAL MATCH DEFEAT`;
+            statusBanner.style.color = isWinnerMe ? "#00ff41" : "var(--danger)";
+        } else {
+            statusBanner.innerText = `MATCH OVER: @${match.winner.toUpperCase()} WINS!`;
+            statusBanner.style.color = "#ffcc00";
+        }
+        disableAllMatchCells(match._id);
+    } else if (match.status === "TIMEOUT") {
+        statusBanner.innerText = "DUEL TERMINATED: CONNECTION TIMEOUT";
+        statusBanner.style.color = "var(--danger)";
+        disableAllMatchCells(match._id);
+    }
+});
+
+function disableAllMatchCells(matchId) {
+    for (let i = 0; i < 9; i++) {
+        const cell = document.getElementById(`cell-${matchId}-${i}`);
+        if (cell) cell.disabled = true;
+    }
+}
+// ====================== DYNAMIC TIC TAC TOE CONFIGURATION INTERFACES ======================
+let _tttSign = "X";
+let _tttScope = "OPEN";
+
+function openTTTConfigModal() {
+    const isDM = curRoom.startsWith('DM_');
+    let targetDirectUser = "";
+    
+    if (isDM) {
+        targetDirectUser = getDMOtherUser(curRoom) || "";
+    }
+
+    let html = `
+        <h2 style="color:#ffcc00; text-align:center; margin-bottom:1rem;">DUEL_CONFIGURATION_PROMPT</h2>
+        <p style="font-size:0.8rem; opacity:0.7; text-align:center; margin-bottom:1.5rem;">Calibrate tactical metrics before initializing match stream payload indicators.</p>
+        
+        <label style="color:var(--neon); font-size:0.8rem; display:block; margin-bottom:6px;">_ALLOCATE_SIGNATURE_MATRIX</label>
+        <div style="display:flex; gap:10px; margin-bottom:1.5rem;">
+            <button id="ttt-choose-X" class="gate-btn outline active" onclick="setTTTSignChoice('X')" style="flex:1; border-color:#00f2ff; color:#ff0d00; margin:0;">CHOOSE_X</button>
+            <button id="ttt-choose-O" class="gate-btn outline" onclick="setTTTSignChoice('O')" style="flex:1; border-color:#ff0055; color:#ff0055; margin:0;">CHOOSE_O</button>
+        </div>
+        <input type="hidden" id="ttt-selected-sign" value="X">
+    `;
+
+    if (!isDM) {
+        // GROUP CHAT SCOPE FILTERS
+        html += `
+            <label style="color:var(--neon); font-size:0.8rem; display:block; margin-bottom:6px;">_DEPLOYMENT_TARGET_SCOPE</label>
+            <div style="display:flex; gap:10px; margin-bottom:1.2rem;">
+                <button id="scope-open" class="gate-btn outline active" onclick="setTTTScope('OPEN')" style="flex:1; margin:0; font-size:0.85rem;">ANYONE_IN_GROUP</button>
+                <button id="scope-target" class="gate-btn outline" onclick="setTTTScope('TARGET')" style="flex:1; margin:0; font-size:0.85rem;">TARGET_SPECIFIC</button>
+            </div>
+            
+            <div id="ttt-target-filter-bay" style="display:none; margin-bottom:1.2rem; position:relative;">
+                <input id="ttt-duel-search" class="gate-input" placeholder="Search target user..." oninput="handleDuelSearch()" style="margin:0;">
+                <div id="ttt-duel-search-drop" class="search-results" style="width:100%; left:0; display:none; max-height:180px;"></div>
+                <input type="hidden" id="ttt-final-target-user" value="">
+            </div>
+        `;
+    } else {
+        html += `<input type="hidden" id="ttt-final-target-user" value="${targetDirectUser}">`;
+    }
+
+    html += `
+        <button class="gate-btn" onclick="executeMatchDeployment()" style="background:#ffcc00; color:#000; margin-top:10px; font-weight:bold;">START DUEL</button>
+        <button class="gate-btn outline" onclick="closeModal()" style="margin-top:6px;">CANCEL</button>
+    `;
+    
+    showModal(html);
+}
+
+function setTTTSignChoice(sign) {
+    _tttSign = sign;
+    
+    const hiddenSignInput = document.getElementById('ttt-selected-sign');
+    if (hiddenSignInput) hiddenSignInput.value = sign;
+
+    const btnX = document.getElementById('ttt-choose-X');
+    const btnO = document.getElementById('ttt-choose-O');
+    if(btnX && btnO) {
+        btnX.classList.toggle('active', sign === 'X');
+        btnO.classList.toggle('active', sign === 'O');
+    }
+}
+
+function setTTTScope(scope) {
+    _tttScope = scope;
+    const sOpen = document.getElementById('scope-open');
+    const sTarget = document.getElementById('scope-target');
+    const filterBay = document.getElementById('ttt-target-filter-bay');
+    
+    if(sOpen && sTarget) {
+        sOpen.classList.toggle('active', scope === 'OPEN');
+        sTarget.classList.toggle('active', scope === 'TARGET');
+    }
+    if (filterBay) filterBay.style.display = scope === 'TARGET' ? 'block' : 'none';
+}
+
+function handleDuelSearch() {
+    const q = document.getElementById('ttt-duel-search').value.trim();
+    const drop = document.getElementById('ttt-duel-search-drop');
+    if (q.length < 2) { 
+        if (drop) drop.style.display = 'none'; 
+        return; 
+    }
+    
+    // FIX: Swapped socket.emit('global_search') out for group-isolated member search pipelines
+    socket.emit('cluster_member_search', { roomId: curRoom, query: q });
+}
+
+function executeMatchDeployment() {
+    const targetUser = document.getElementById('ttt-final-target-user')?.value || "";
+    const isDM = curRoom.startsWith('DM_');
+    
+    if (!isDM && _tttScope === 'TARGET' && !targetUser) {
+        return showNotify("Target node username identity selection required", "ERROR", "error");
+    }
+
+    socket.emit('create_match', {
+        roomId: curRoom,
+        chosenSign: _tttSign,
+        targetUser: isDM || _tttScope === 'TARGET' ? targetUser : "enclave_challenger"
+    });
+    closeModal();
+}
+// ====================== FIX: SECURE ISOLATED GROUP DUEL DROPDOWN ======================
+socket.on('ttt_duel_search_results', ({ users }) => {
+    const duelDrop = document.getElementById('ttt-duel-search-drop');
+    if (!duelDrop) return; // Ignore if the user closed the configuration modal mid-search
+
+    duelDrop.innerHTML = '';
+    duelDrop.style.display = 'block';
+
+    if (!users || users.length === 0) {
+        duelDrop.innerHTML = `<div style="padding:10px; color:#666; font-size:0.8rem; text-align:center;">No matching members found</div>`;
+        return;
+    }
+
+    users.forEach(u => {
+        if (u.username.toLowerCase() === me.toLowerCase()) return; // Block challenging yourself
+
+        const div = document.createElement('div');
+        div.className = 'nav-item';
+        div.style.padding = '8px 12px';
+        div.style.fontSize = '0.85rem';
+        div.style.cursor = 'pointer';
+        div.textContent = u.username;
+
+        div.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const searchInput = document.getElementById('ttt-duel-search');
+            const hiddenTarget = document.getElementById('ttt-final-target-user');
+
+            if (searchInput) searchInput.value = u.username.toUpperCase();
+            if (hiddenTarget) {
+                hiddenTarget.value = u.username.toLowerCase();
+                console.log(`[TTT_SYSTEM] Group target locked: ${hiddenTarget.value}`);
+            }
+
+            duelDrop.style.display = 'none';
+        };
+        duelDrop.appendChild(div);
+    });
+});
