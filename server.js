@@ -44,8 +44,13 @@ const Message = mongoose.model('Message', new mongoose.Schema({
     text: String,
     isVip: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now },
-    // ADD THIS SUB-ARRAY LAYER TO STORE USER REACTIONS INTO MONGOOSE DOCUMENTS
-    reactions: [{ username: String, emoji: String }] 
+    reactions: [{ username: String, emoji: String }],
+    // ADD REPLY ATTRIBUTION SUBSURFACE DATA
+    replyTo: {
+        msgId: String,
+        sender: String,
+        text: String
+    }
 }));
 
 //SOCKET EVENTS
@@ -138,6 +143,7 @@ io.on('connection', (socket) => {
     });
 
     // CREATE CLUSTER
+    // CREATE CLUSTER
     socket.on('create_cluster', async (data) => {
         try {
             if (!socket.data.username || !data.groupName?.trim()) {
@@ -158,7 +164,6 @@ io.on('connection', (socket) => {
             await newGroup.save();
 
             const groupRef = { roomId, groupName: data.groupName.trim(), isDM: false };
-
             await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: groupRef } });
 
             // Ensure the creator physically joins the socket channel
@@ -166,6 +171,21 @@ io.on('connection', (socket) => {
 
             socket.emit('cluster_joined', groupRef);
             socket.emit('notify', { m: `Cluster "${data.groupName}" established`, type: "success" });
+
+            // AUTOMATED PIPELINE RECONSTRUCTION: Dispatch Group Creation System Event Message
+            const systemNotice = new Message({
+                room: roomId,
+                roomName: data.groupName.trim(),
+                sender: "SYSTEM",
+                text: `${socket.data.username.toUpperCase()} ESTABLISHED THIS CLUSTER ENCLAVE.`,
+                isVip: false,
+                timestamp: new Date()
+            });
+            await systemNotice.save();
+            
+            // Broadcast the notice to the room
+            io.to(roomId).emit('new_msg', systemNotice);
+
         } catch (err) {
             console.error("[CREATE_CLUSTER_ERROR]", err);
             socket.emit('notify', { m: "CLUSTER_CREATION_FAILED", type: "error" });
@@ -283,6 +303,7 @@ socket.on('join_room', async (roomId) => {
 });
 
     // SEND MESSAGE 
+    // SEND MESSAGE 
     socket.on('send_msg', async (p) => {
         try {
             if (!socket.data.username || !p.room || !p.text?.trim()) return;
@@ -298,19 +319,27 @@ socket.on('join_room', async (roomId) => {
                 if (otherUser) finalRoomName = otherUser;
             }
 
-            const msg = new Message({
+            const msgConfig = {
                 room: p.room,
                 roomName: finalRoomName,
                 sender: socket.data.username,
                 text: p.text.trim(),
                 isVip,
-                
-                timestamp: new Date() 
-            });
+                timestamp: new Date()
+            };
 
+            // Capture nested context pointers if attaching replies
+            if (p.replyTo) {
+                msgConfig.replyTo = {
+                    msgId: p.replyTo.msgId,
+                    sender: p.replyTo.sender,
+                    text: p.replyTo.text
+                };
+            }
+
+            const msg = new Message(msgConfig);
             await msg.save();
 
-            
             io.to(p.room).emit('new_msg', msg);
 
         } catch (err) {

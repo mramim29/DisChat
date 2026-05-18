@@ -1,6 +1,4 @@
-
 const socket = io();
-
 let me = "";
 let curRoom = "";
 let curRoomName = "";
@@ -9,7 +7,7 @@ let currentTheme = localStorage.getItem('dischat-theme') || 'cyan';
 let bubbleStyle = localStorage.getItem('dischat-bubble') || 'rect';
 let vipEffect = localStorage.getItem('dischat-vipeffect') || 'neon';
 let roomTimestamps = {};
-
+let currentReplyTarget = null;
 //NOTIFICATION & AUDIO SETUP
 const notificationSound = document.getElementById('notification-sound');
 
@@ -166,6 +164,7 @@ function getDMOtherUser(roomId) {
 }
 
 //RENDER NODE
+// RENDER NODE (CLEAN STREAMLINE OPTIMIZATION)
 function renderNode(g) {
     const list = g.isDM ? document.getElementById('dm-list') : document.getElementById('cluster-list');
     if (document.getElementById(`node-${g.roomId}`)) return;
@@ -184,9 +183,10 @@ function renderNode(g) {
         if (other) displayName = other;
     }
 
+    // Removed the [DM] and [C] bracket prefixes for a pristine layout
     div.innerHTML = `
         <span class="nav-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold;">
-            [${g.isDM ? 'DM' : 'C'}] ${displayName}
+            ${displayName}
         </span>
         <div id="preview-${g.roomId}" class="nav-preview">No transmissions yet</div>
     `;
@@ -240,12 +240,22 @@ function closeSidebarOnChatClick() {
     }
 }
 
-// message logic
+// message logic with reply
 function appendMsg(m) {
     const wrap = document.getElementById('msg-flow');
     const isMe = m.sender.toLowerCase() === me.toLowerCase();
-    const vipClass = m.isVip ? `vip-message vip-${vipEffect}` : '';
+    
+    // Check if the message is a system notification notice
+    if (m.sender === "SYSTEM") {
+        const sysDiv = document.createElement('div');
+        sysDiv.className = "system-broadcast-badge";
+        sysDiv.innerHTML = `<span>${escapeHTML(m.text)}</span>`;
+        wrap.appendChild(sysDiv);
+        wrap.scrollTop = wrap.scrollHeight;
+        return;
+    }
 
+    const vipClass = m.isVip ? `vip-message vip-${vipEffect}` : '';
     const div = document.createElement('div');
     div.className = `msg-bubble ${isMe ? 'me' : ''} ${bubbleStyle} ${vipClass}`;
     div.id = `msg-${m._id}`;
@@ -254,91 +264,163 @@ function appendMsg(m) {
     const safeSender = escapeHTML(m.sender);
     const safeText = escapeHTML(m.text);
 
-    // 1. GENERATE THE STRUCTURAL DOM TEMPLATE
+    // Build context-aware reference blocks if this packet is linked to a previous message reply
+    let replyQuoteHTML = '';
+    if (m.replyTo) {
+        replyQuoteHTML = `
+            <div class="nested-reply-quote" onclick="scrollToTargetMessage('${m.replyTo.msgId}')">
+                <small style="color:var(--neon); font-weight:bold;">@${escapeHTML(m.replyTo.sender)}</small>
+                <div class="reply-quote-text-snippet">${escapeHTML(m.replyTo.text)}</div>
+            </div>
+        `;
+    }
+
+    // 1. GENERATE THE STRUCTURAL DOM TEMPLATE (Added explicit Desktop Reply control node)
     div.innerHTML = `
+        <button class="desktop-reply-action-shortcut" onclick="initiateReplySequence('${m._id}', '${safeSender}', '${safeText}')" title="Reply to transmission">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 14L4 9L9 4M4 9H14C17.866 9 21 12.134 21 16V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+
         <div class="reaction-trigger-zone">
             <span class="react-btn" onclick="submitReaction('${m._id}', '👍')">👍</span>
             <span class="react-btn" onclick="submitReaction('${m._id}', '🔥')">🔥</span>
             <span class="react-btn" onclick="submitReaction('${m._id}', '😂')">😂</span>
             <span class="react-btn" onclick="submitReaction('${m._id}', '😮')">😮</span>
             <span class="react-btn" onclick="submitReaction('${m._id}', '😢')">😢</span>
-            
             <span class="react-btn add-more-reactions-trigger" onclick="openEmojiPickerModal('${m._id}')" style="color: var(--neon); font-family: 'JetBrains Mono', monospace; font-weight: bold; padding-left: 2px;">+</span>
         </div>
 
-        <div class="bubble-content">
-            <small style="color:var(--neon)">[${safeSender}]${vipTag}</small><br>
-            <span class="msg-text-payload">${safeText}</span>
-            <div class="reaction-tray" id="react-tray-${m._id}"></div>
+        <div class="bubble-content-swipe-container">
+            <div class="bubble-content">
+                ${replyQuoteHTML}
+                <small style="color:var(--neon)">[${safeSender}]${vipTag}</small><br>
+                <span class="msg-text-payload">${safeText}</span>
+                <div class="reaction-tray" id="react-tray-${m._id}"></div>
+            </div>
+            <div class="swipe-reply-indicator-icon">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 14L4 9L9 4M4 9H14C17.866 9 21 12.134 21 16V20" stroke="var(--neon)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
         </div>
     `;
     
     wrap.appendChild(div);
-
-   
     renderReactionBadges(m._id, m.reactions || []);
 
+    // ==================== INTERACTION: MOBILE SWIPE-TO-REPLY ENGINE ====================
     let touchTimer = null;
     let isLongPress = false; 
+    let startX = 0;
+    let currentX = 0;
+    let isSwiping = false;
+
+    const swipeContainer = div.querySelector('.bubble-content-swipe-container');
     const bubbleContent = div.querySelector('.bubble-content');
     const triggerZone = div.querySelector('.reaction-trigger-zone');
 
-    if (bubbleContent && triggerZone) {
-        // Track initial physical touchdown coordinate metrics
-        bubbleContent.addEventListener('touchstart', (e) => {
-            isLongPress = false; 
-            
+    if (swipeContainer && bubbleContent && triggerZone) {
+        
+        swipeContainer.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+            isSwiping = false;
+            isLongPress = false;
+
             touchTimer = setTimeout(() => {
-                isLongPress = true; 
-                
-                // Clear out any alternative visible reaction trays to prevent multi-bubble alignment clutter
-                document.querySelectorAll('.reaction-trigger-zone').forEach(zone => {
-                    if (zone !== triggerZone) zone.style.display = 'none';
-                });
-                
-                triggerZone.style.display = 'flex';
-                
-                // Fire native device haptics feedback vibration pulse if available
-                if (navigator.vibrate) navigator.vibrate(30); 
-            }, 500); // 500ms hold
+                if (!isSwiping) {
+                    isLongPress = true;
+                    document.querySelectorAll('.reaction-trigger-zone').forEach(zone => {
+                        if (zone !== triggerZone) zone.style.display = 'none';
+                    });
+                    triggerZone.style.display = 'flex';
+                    if (navigator.vibrate) navigator.vibrate(30);
+                }
+            }, 500);
         }, { passive: true });
 
-        // Kill the tracking timer loop instantly if they start scrolling through history
-        bubbleContent.addEventListener('touchmove', () => {
-            clearTimeout(touchTimer); 
-        }, { passive: true });
+        swipeContainer.addEventListener('touchmove', (e) => {
+            currentX = e.touches[0].clientX;
+            const diffX = currentX - startX;
 
-        // Enforce interaction overrides when lifting finger frame
-        bubbleContent.addEventListener('touchend', (e) => {
-            clearTimeout(touchTimer);
-            if (isLongPress) {
-                e.preventDefault();
-                e.stopPropagation();
+            // Only recognize horizontal swipes sliding rightward (WhatsApp style movement)
+            if (diffX > 10 && !isLongPress) {
+                isSwiping = true;
+                clearTimeout(touchTimer); // Intentionally kill long-press loops if movement starts
+                
+                // Limit swipe distance
+                const translateAmt = Math.min(diffX, 70); 
+                bubbleContent.style.transform = `translateX(${translateAmt}px)`;
+                
+                // Gradually reveal the reply icon as the swipe distance increases
+                const indicator = swipeContainer.querySelector('.swipe-reply-indicator-icon');
+                if (indicator) {
+                    indicator.style.opacity = Math.min(diffX / 50, 1);
+                    indicator.style.transform = `translateY(-50%) scale(${Math.min(diffX / 50, 1)})`;
+                }
             }
-        }, { passive: false });
+        }, { passive: true });
 
-        // Protect text selections and bubble default actions during focus locks
+        swipeContainer.addEventListener('touchend', (e) => {
+            clearTimeout(touchTimer);
+            const diffX = currentX - startX;
+
+            if (isSwiping) {
+                // If the user swiped far enough past our 55px threshold, execute the reply action
+                if (diffX > 55) {
+                    initiateReplySequence(m._id, m.sender, m.text);
+                    if (navigator.vibrate) navigator.vibrate([15, 10, 15]);
+                }
+                
+                // Snap the message layout back into place with a smooth transition animation
+                bubbleContent.style.transition = "transform 0.25s ease";
+                bubbleContent.style.transform = "translateX(0px)";
+                
+                const indicator = swipeContainer.querySelector('.swipe-reply-indicator-icon');
+                if (indicator) {
+                    indicator.style.transition = "opacity 0.2s, transform 0.2s";
+                    indicator.style.opacity = "0";
+                    indicator.style.transform = "translateY(-50%) scale(0.4)";
+                }
+
+                // Clean up transition rules once the reset animation finishes
+                setTimeout(() => {
+                    bubbleContent.style.removeProperty('transition');
+                    if (indicator) indicator.style.removeProperty('transition');
+                }, 260);
+            }
+        }, { passive: true });
+
+        // Safety listeners to ensure smooth click tracking
         bubbleContent.addEventListener('click', (e) => {
-            if (triggerZone.style.display === 'flex' || isLongPress) {
+            if (triggerZone.style.display === 'flex' || isLongPress || isSwiping) {
                 e.preventDefault();
                 e.stopPropagation();
             }
         }, { capture: true });
     }
-    
-    //EXECUTE VIEWPORT SCROLL RE-ANCHORING
+
     wrap.scrollTop = wrap.scrollHeight;
 }
 function sendMsg() {
     const i = document.getElementById('m-in');
     const text = i.value.trim();
     if (text && curRoom) {
-        socket.emit('send_msg', { 
+        const payload = { 
             room: curRoom, 
             text: text, 
             roomName: curRoomName 
-        });
+        };
+        
+        // Attach references if a reply choice is currently queued up
+        if (currentReplyTarget) {
+            payload.replyTo = currentReplyTarget;
+        }
+
+        socket.emit('send_msg', payload);
         i.value = "";
+        clearActiveReplySequence(); // Close tracking bar view state on message transmit
     }
 }
 
@@ -843,3 +925,48 @@ function viewReactionDetails(emoji, usersArray) {
 socket.on('reaction_updated', ({ msgId, reactions }) => {
     renderReactionBadges(msgId, reactions);
 });
+function initiateReplySequence(msgId, sender, rawText) {
+    currentReplyTarget = { msgId, sender, text: rawText };
+    
+    // Check if the reply visual indicator bar is already rendered in the DOM
+    let bar = document.getElementById('reply-context-anchor-bar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'reply-context-anchor-bar';
+        
+        // Inject the layout bar directly above the main chat input bay area container
+        const inputBay = document.querySelector('.input-bay');
+        inputBay.parentNode.insertBefore(bar, inputBay);
+    }
+
+    bar.innerHTML = `
+        <div class="reply-bar-accent-line"></div>
+        <div class="reply-bar-payload-content">
+            <small style="color:var(--neon); font-weight:bold;">REPLY_TO: @${escapeHTML(sender)}</small>
+            <div class="reply-bar-text-preview-snippet">${escapeHTML(rawText)}</div>
+        </div>
+        <button class="close-reply-context-sequence-btn" onclick="clearActiveReplySequence()">&times;</button>
+    `;
+    
+    // Smoothly adjust sizing properties
+    bar.style.display = 'flex';
+    document.getElementById('m-in')?.focus();
+}
+
+function clearActiveReplySequence() {
+    currentReplyTarget = null;
+    const bar = document.getElementById('reply-context-anchor-bar');
+    if (bar) bar.style.display = 'none';
+}
+
+function scrollToTargetMessage(msgId) {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Flash animation to highlight the linked parent element
+        el.style.animation = 'none';
+        setTimeout(() => el.style.animation = 'reply-target-flash-highlight 1.5s ease', 10);
+    } else {
+        showNotify("Target baseline transmission archived or inaccessible", "SYSTEM", "info");
+    }
+}
