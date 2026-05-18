@@ -1,5 +1,3 @@
-// server.js - FULLY FIXED & PROFESSIONAL (ENTERPRISE ARCHITECTURE)
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -19,7 +17,7 @@ mongoose.connect(process.env.MONGO_URI, { dbName: 'dischat_data' })
     .then(() => console.log(">>> [SYSTEM_CORE]: DATABASE_ONLINE"))
     .catch(err => console.error(">>> [FATAL_ERR]: DB_CONNECTION_FAILED", err));
 
-// ====================== SCHEMAS ======================
+//SCHEMAS
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, unique: true, required: true, trim: true, lowercase: true },
     password: { type: String, required: true },
@@ -44,14 +42,16 @@ const Message = mongoose.model('Message', new mongoose.Schema({
     sender: String,
     text: String,
     isVip: { type: Boolean, default: false },
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now },
+    // ADD THIS SUB-ARRAY LAYER TO STORE USER REACTIONS INTO MONGOOSE DOCUMENTS
+    reactions: [{ username: String, emoji: String }] 
 }));
 
-// ====================== SOCKET EVENTS ======================
+//SOCKET EVENTS
 io.on('connection', (socket) => {
     console.log(`[NET] Port opened: ${socket.id}`);
 
-    // AUTH
+    // AUTH LAYER - INJECT CHRONO DATA RESYNC
     socket.on('login', async (data) => {
         try {
             const user = await User.findOne({ username: data.username.toLowerCase() });
@@ -62,8 +62,6 @@ io.on('connection', (socket) => {
             socket.data.username = user.username;
             socket.data.isVip = user.isVip;
 
-            // VETERAN FIX: The Pub/Sub Lifeline.
-            // Instantly wire the user into ALL their database-persisted socket channels upon connection.
             socket.join('global'); 
             if (user.groups && user.groups.length > 0) {
                 user.groups.forEach(g => {
@@ -71,9 +69,31 @@ io.on('connection', (socket) => {
                 });
             }
 
+            //TIME SEQUENCE
+            const updatedGroupsWithTime = await Promise.all((user.groups || []).map(async (g) => {
+                const plainGroup = g.toObject ? g.toObject() : { ...g };
+                const lastMsg = await Message.findOne({ room: plainGroup.roomId })
+                    .sort({ timestamp: -1 })
+                    .select('text sender timestamp')
+                    .lean();
+
+                
+                plainGroup.isDM = !!plainGroup.isDM;
+
+                if (lastMsg) {
+                    plainGroup.lastMsgSnippet = `${lastMsg.sender}: ${lastMsg.text}`;
+                    plainGroup.lastTimestamp = new Date(lastMsg.timestamp).getTime();
+                } else {
+                    plainGroup.lastMsgSnippet = "No transmissions yet";
+                    plainGroup.lastTimestamp = 0;
+                }
+                return plainGroup;
+            }));
+            
+
             socket.emit('login_success', { 
                 username: user.username, 
-                groups: user.groups || [],
+                groups: updatedGroupsWithTime, // Transmit complete hydration objects
                 isVip: user.isVip 
             });
         } catch (err) {
@@ -150,14 +170,60 @@ io.on('connection', (socket) => {
             socket.emit('notify', { m: "CLUSTER_CREATION_FAILED", type: "error" });
         }
     });
+    // INVITE/ADD PERSON TO CLUSTER
+    socket.on('invite_to_cluster', async ({ roomId, targetUsername }) => {
+        try {
+            if (!socket.data.username || !roomId || !targetUsername) return;
+
+            const targetLower = targetUsername.trim().toLowerCase();
+            
+            // 1. Verify target user exists and is approved
+            const targetUser = await User.findOne({ username: targetLower, isApproved: true });
+            if (!targetUser) {
+                return socket.emit('notify', { m: "NODE_IDENTITY_INVALID_OR_PENDING", type: "error" });
+            }
+
+            // 2. Verify the group exists
+            const groupData = await Group.findOne({ roomId });
+            if (!groupData) {
+                return socket.emit('notify', { m: "CLUSTER_NOT_FOUND", type: "error" });
+            }
+
+            const groupRef = { roomId, groupName: groupData.groupName, isDM: false };
+
+            // 3. Persist relations to DB simultaneously 
+            await User.updateOne({ username: targetLower }, { $addToSet: { groups: groupRef } });
+            await Group.updateOne({ roomId }, { $addToSet: { members: targetLower } });
+
+            
+            let targetIsOnline = false;
+            for (const [_, client] of io.sockets.sockets) {
+                if (client.data.username === targetLower) {
+                    client.join(roomId);
+                    client.emit('cluster_joined', groupRef);
+                    client.emit('notify', { m: `You have been deployed into Cluster: ${groupData.groupName}`, type: "info" });
+                    targetIsOnline = true;
+                }
+            }
+
+            socket.emit('notify', { 
+                m: `Node [${targetUsername}] spliced into stream. Status: ${targetIsOnline ? 'LIVE_SYNC' : 'DEFERRED_SYNC'}`, 
+                type: "success" 
+            });
+
+        } catch (err) {
+            console.error("[INVITE_TO_CLUSTER_ERROR]", err);
+            socket.emit('notify', { m: "STREAM_SPLICING_FAILED", type: "error" });
+        }
+    });
 
     // START DM
     socket.on('start_dm', async ({ target, roomId, roomName }) => {
         try {
             if (!socket.data.username || target.toLowerCase() === socket.data.username.toLowerCase()) return;
 
-            // VETERAN FIX: Asymmetric saving. 
-            // Save the exact correct opponent name into each respective user's array.
+             
+           
             const senderRef = { roomId, groupName: target, isDM: true };
             const receiverRef = { roomId, groupName: socket.data.username, isDM: true };
 
@@ -168,7 +234,7 @@ io.on('connection', (socket) => {
             socket.join(roomId);
             socket.emit('dm_started', { ...senderRef, initiatedByMe: true });
 
-            // If the target node is online, forcibly subscribe them to the new channel
+            // If the target node is online, forcibly add them to the new channel
             for (const [_, client] of io.sockets.sockets) {
                 if (client.data.username === target.toLowerCase()) {
                     client.join(roomId);
@@ -181,17 +247,15 @@ io.on('connection', (socket) => {
         }
     });
 
-    // JOIN ROOM (History Retrieval)
-    // [CHANGE IN server.js] - Updated join_room for auto-persistence
+    // JOIN ROOM
 socket.on('join_room', async (roomId) => {
     try {
         if (!roomId || !socket.data.username) return;
 
-        // 1. Physically join the socket channel
+        
         socket.join(roomId);
 
-        // 2. VETERAN FIX: PERSISTENCE LOGIC
-        // If joining a Cluster from search, save it to the user's permanent list
+        
         if (roomId.startsWith('CLUSTER_')) {
             const groupData = await Group.findOne({ roomId });
             if (groupData) {
@@ -217,7 +281,7 @@ socket.on('join_room', async (roomId) => {
     }
 });
 
-    // SEND MESSAGE
+    // SEND MESSAGE 
     socket.on('send_msg', async (p) => {
         try {
             if (!socket.data.username || !p.room || !p.text?.trim()) return;
@@ -227,7 +291,6 @@ socket.on('join_room', async (roomId) => {
 
             let finalRoomName = p.roomName || p.room;
 
-            // Strict server-side name evaluation for DB persistence
             if (p.room.startsWith('DM_')) {
                 const parts = p.room.split('_').slice(1);
                 const otherUser = parts.find(u => u.toLowerCase() !== socket.data.username.toLowerCase());
@@ -239,17 +302,58 @@ socket.on('join_room', async (roomId) => {
                 roomName: finalRoomName,
                 sender: socket.data.username,
                 text: p.text.trim(),
-                isVip
+                isVip,
+                
+                timestamp: new Date() 
             });
 
             await msg.save();
 
-            // Broadcast to all sockets listening in the room
+            
             io.to(p.room).emit('new_msg', msg);
 
-            
         } catch (err) {
             console.error("[SEND_MSG_ERROR]", err);
+        }
+    });
+    
+    socket.on('message_reaction', async ({ msgId, emoji }) => {
+        try {
+            if (!socket.data.username || !msgId || !emoji) return;
+
+            const username = socket.data.username.toLowerCase();
+
+            // Fetch the target message document from  collection
+            const msg = await Message.findById(msgId);
+            if (!msg) return;
+
+            //Locate ANY existing reaction previously left by this user on this message
+            const pastReactionIndex = msg.reactions.findIndex(
+                r => r.username.toLowerCase() === username
+            );
+
+            if (pastReactionIndex > -1) {
+                const pastReaction = msg.reactions[pastReactionIndex];
+                
+                // If they clicked the EXACT same emoji again, treat it as a toggle OFF (remove it)
+                if (pastReaction.emoji === emoji) {
+                    msg.reactions.splice(pastReactionIndex, 1);
+                } else {
+                    // If they clicked a DIFFERENT emoji, swap it! Update their choice inline.
+                    msg.reactions[pastReactionIndex].emoji = emoji;
+                }
+            } else {
+                // If they have no prior history on this message, safely push their new reaction mapping
+                msg.reactions.push({ username, emoji });
+            }
+
+            await msg.save();
+
+            // Broad-scale emit layout signals outwards to everyone tuned into the active pipeline
+            io.to(msg.room).emit('reaction_updated', { msgId, reactions: msg.reactions });
+
+        } catch (err) {
+            console.error("[MESSAGE_REACTION_ERROR]", err);
         }
     });
 

@@ -1,4 +1,4 @@
-// script.js - ENTERPRISE GRADE ARCHITECTURE
+
 const socket = io();
 
 let me = "";
@@ -8,8 +8,9 @@ let isVipUser = false;
 let currentTheme = localStorage.getItem('dischat-theme') || 'cyan';
 let bubbleStyle = localStorage.getItem('dischat-bubble') || 'rect';
 let vipEffect = localStorage.getItem('dischat-vipeffect') || 'neon';
+let roomTimestamps = {};
 
-// ====================== NOTIFICATION & AUDIO SETUP ======================
+//NOTIFICATION & AUDIO SETUP
 const notificationSound = document.getElementById('notification-sound');
 
 function playNotificationSound() {
@@ -37,7 +38,7 @@ function showSystemNotification(title, body, roomId = null, roomName = null) {
     };
 }
 
-// ====================== UTILITIES ======================
+// UTILITIES 
 function escapeHTML(str) {
     if (!str) return "";
     return str.replace(/[&<>'"]/g, tag => ({
@@ -79,7 +80,7 @@ function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomNa
     }
 }
 
-// ====================== MANUAL & ONBOARDING FLOW ======================
+//MANUAL & ONBOARDING FLOW
 function enterAuthentication() {
     document.getElementById('manual-layer').style.display = 'none';
     document.getElementById('auth-layer').style.display = 'flex';
@@ -100,11 +101,11 @@ function showUserManualModal() {
     showModal(html);
 }
 
-// ====================== AUTH ======================
+//AUTH
 function auth(type) {
     const u = document.getElementById('l-u').value.trim();
     const p = document.getElementById('l-p').value.trim();
-    if (!u || !p) return showNotify("IDENTITY_ID AND PASSKEY REQUIRED", "ERROR", "error");
+    if (!u || !p) return showNotify("Username AND PASSKEY REQUIRED", "ERROR", "error");
     
     socket.emit(type, { username: u, password: p });
     
@@ -123,7 +124,7 @@ function tryAutoLogin() {
     }
 }
 
-// ====================== CREATE CLUSTER ======================
+//CREATE CLUSTER 
 function openCreateGroupModal() {
     const html = `
         <h2 style="color:var(--neon); text-align:center; margin-bottom:1rem;">CREATE NEW CLUSTER</h2>
@@ -157,14 +158,14 @@ function createCluster() {
     closeModal();
 }
 
-// ====================== HELPER ======================
+//HELPER
 function getDMOtherUser(roomId) {
     if (!roomId || !roomId.startsWith('DM_')) return null;
     const parts = roomId.split('_').slice(1);
     return parts.find(u => u.toLowerCase() !== me.toLowerCase()) || null;
 }
 
-// ====================== RENDER NODE ======================
+//RENDER NODE
 function renderNode(g) {
     const list = g.isDM ? document.getElementById('dm-list') : document.getElementById('cluster-list');
     if (document.getElementById(`node-${g.roomId}`)) return;
@@ -172,6 +173,10 @@ function renderNode(g) {
     const div = document.createElement('div');
     div.id = `node-${g.roomId}`;
     div.className = "nav-item";
+    
+    if (!roomTimestamps[g.roomId]) {
+        roomTimestamps[g.roomId] = g.lastTimestamp || Date.now();
+    }
 
     let displayName = g.groupName;
     if (g.isDM) {
@@ -179,9 +184,17 @@ function renderNode(g) {
         if (other) displayName = other;
     }
 
-    div.innerText = `[${g.isDM ? 'DM' : 'C'}] ${displayName}`;
+    div.innerHTML = `
+        <span class="nav-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold;">
+            [${g.isDM ? 'DM' : 'C'}] ${displayName}
+        </span>
+        <div id="preview-${g.roomId}" class="nav-preview">No transmissions yet</div>
+    `;
+
     div.onclick = () => joinRoom(g.roomId, displayName);
     list.appendChild(div);
+    
+    updateSidebarSorting(g.roomId);
 }
 
 function joinRoom(id, name) {
@@ -192,6 +205,20 @@ function joinRoom(id, name) {
 
     document.getElementById('active-room').innerText = curRoomName;
     document.getElementById('msg-flow').innerHTML = "";
+
+    // Clear unread snippet highlight states upon reading
+    const targetPreview = document.getElementById(`preview-${id}`);
+    if (targetPreview) targetPreview.style.color = '#666';
+
+    // DYNAMIC TOGGLE VISIBILITY: Show [+ ADD NODE] only if it's a Cluster room
+    const actionContainer = document.getElementById('header-actions');
+    if (actionContainer) {
+        if (id.startsWith('CLUSTER_')) {
+            actionContainer.style.display = 'block';
+        } else {
+            actionContainer.style.display = 'none';
+        }
+    }
 
     socket.emit('join_room', id);
     
@@ -213,6 +240,7 @@ function closeSidebarOnChatClick() {
     }
 }
 
+// message logic
 function appendMsg(m) {
     const wrap = document.getElementById('msg-flow');
     const isMe = m.sender.toLowerCase() === me.toLowerCase();
@@ -220,21 +248,87 @@ function appendMsg(m) {
 
     const div = document.createElement('div');
     div.className = `msg-bubble ${isMe ? 'me' : ''} ${bubbleStyle} ${vipClass}`;
+    div.id = `msg-${m._id}`;
 
     const vipTag = m.isVip ? ' ★VIP' : '';
     const safeSender = escapeHTML(m.sender);
     const safeText = escapeHTML(m.text);
 
+    // 1. GENERATE THE STRUCTURAL DOM TEMPLATE
     div.innerHTML = `
+        <div class="reaction-trigger-zone">
+            <span class="react-btn" onclick="submitReaction('${m._id}', '👍')">👍</span>
+            <span class="react-btn" onclick="submitReaction('${m._id}', '🔥')">🔥</span>
+            <span class="react-btn" onclick="submitReaction('${m._id}', '😂')">😂</span>
+            <span class="react-btn" onclick="submitReaction('${m._id}', '😮')">😮</span>
+            <span class="react-btn" onclick="submitReaction('${m._id}', '😢')">😢</span>
+            
+            <span class="react-btn add-more-reactions-trigger" onclick="openEmojiPickerModal('${m._id}')" style="color: var(--neon); font-family: 'JetBrains Mono', monospace; font-weight: bold; padding-left: 2px;">+</span>
+        </div>
+
         <div class="bubble-content">
             <small style="color:var(--neon)">[${safeSender}]${vipTag}</small><br>
-            ${safeText}
+            <span class="msg-text-payload">${safeText}</span>
+            <div class="reaction-tray" id="react-tray-${m._id}"></div>
         </div>
     `;
+    
     wrap.appendChild(div);
+
+   
+    renderReactionBadges(m._id, m.reactions || []);
+
+    let touchTimer = null;
+    let isLongPress = false; 
+    const bubbleContent = div.querySelector('.bubble-content');
+    const triggerZone = div.querySelector('.reaction-trigger-zone');
+
+    if (bubbleContent && triggerZone) {
+        // Track initial physical touchdown coordinate metrics
+        bubbleContent.addEventListener('touchstart', (e) => {
+            isLongPress = false; 
+            
+            touchTimer = setTimeout(() => {
+                isLongPress = true; 
+                
+                // Clear out any alternative visible reaction trays to prevent multi-bubble alignment clutter
+                document.querySelectorAll('.reaction-trigger-zone').forEach(zone => {
+                    if (zone !== triggerZone) zone.style.display = 'none';
+                });
+                
+                triggerZone.style.display = 'flex';
+                
+                // Fire native device haptics feedback vibration pulse if available
+                if (navigator.vibrate) navigator.vibrate(30); 
+            }, 500); // 500ms hold
+        }, { passive: true });
+
+        // Kill the tracking timer loop instantly if they start scrolling through history
+        bubbleContent.addEventListener('touchmove', () => {
+            clearTimeout(touchTimer); 
+        }, { passive: true });
+
+        // Enforce interaction overrides when lifting finger frame
+        bubbleContent.addEventListener('touchend', (e) => {
+            clearTimeout(touchTimer);
+            if (isLongPress) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, { passive: false });
+
+        // Protect text selections and bubble default actions during focus locks
+        bubbleContent.addEventListener('click', (e) => {
+            if (triggerZone.style.display === 'flex' || isLongPress) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, { capture: true });
+    }
+    
+    //EXECUTE VIEWPORT SCROLL RE-ANCHORING
     wrap.scrollTop = wrap.scrollHeight;
 }
-
 function sendMsg() {
     const i = document.getElementById('m-in');
     const text = i.value.trim();
@@ -248,7 +342,7 @@ function sendMsg() {
     }
 }
 
-// ====================== SEARCH & DM ======================
+//SEARCH & DM
 function handleSearch() {
     const query = document.getElementById('net-search').value.trim();
     const drop = document.getElementById('search-drop');
@@ -315,8 +409,7 @@ function startDM(username) {
     socket.emit('start_dm', { target: username, roomId, roomName });
     document.getElementById('search-drop').style.display = 'none';
 }
-
-// ====================== PROFILE MATRIX ======================
+//PROFILE MATRIX
 function renderUserProfile() {
     let html = `
         <h2 style="color:var(--neon); text-align:center; margin-bottom:1.5rem;">USER PROFILE</h2>
@@ -425,13 +518,12 @@ function logout() {
     location.reload();
 }
 
-// ====================== SOCKET EVENT FLOWS ======================
+//SOCKET EVENT FLOWS
 socket.on('login_success', (d) => {
     me = d.username;
     isVipUser = !!d.isVip;
     localStorage.setItem('dischat_username', me);
 
-    // CRITICAL FIX: Explicitly hide onboarding manual and offline layouts if present
     if (document.getElementById('manual-layer')) document.getElementById('manual-layer').style.display = 'none';
     if (document.getElementById('offline-overlay')) document.getElementById('offline-overlay').style.display = 'none';
     document.getElementById('auth-layer').style.display = 'none';
@@ -441,16 +533,29 @@ socket.on('login_success', (d) => {
     document.getElementById('cluster-list').innerHTML = '';
     document.getElementById('dm-list').innerHTML = '';
 
-    if (d.groups) d.groups.forEach(renderNode);
+    // Render nodes and inject initial baseline preview states
+    if (d.groups) {
+        d.groups.forEach(g => {
+            // Seed the localized cache dictionary
+            if (g.lastTimestamp) {
+                roomTimestamps[g.roomId] = g.lastTimestamp;
+            }
+            
+            renderNode(g);
+            
+            // Hydrate initial preview element markup snippets
+            const previewEl = document.getElementById(`preview-${g.roomId}`);
+            if (previewEl && g.lastMsgSnippet) {
+                previewEl.innerText = g.lastMsgSnippet;
+            }
+        });
+    }
 
     applyTheme(currentTheme);
 
-    // CRITICAL FIX: SMART RECONNCECTION RECOVERY ROUTINE
-    // Instead of resetting to global chat, identify if the user was inside a custom room 
-    // and re-sync that specific room state to fetch all missed historical chat entries!
     const activeRoomId = curRoom || 'global';
     const activeRoomName = curRoomName || 'GLOBAL CHAT';
-    curRoom = ""; // Reset variable memory to bypass identical string blocking logic
+    curRoom = ""; 
     joinRoom(activeRoomId, activeRoomName);
 
     if ("Notification" in window && Notification.permission === "default") {
@@ -470,6 +575,19 @@ socket.on('dm_started', g => {
 
 socket.on('new_msg', m => {
     console.log(`[SYS] Packet received on port [${m.room}] from [${m.sender}]`);
+
+    // ==================== LIVE PREVIEW SNIPPET & TIMELINE INTERCEPT ====================
+    const previewEl = document.getElementById(`preview-${m.room}`);
+    if (previewEl) {
+        previewEl.innerText = `${m.sender}: ${m.text}`;
+        if (m.room !== curRoom) previewEl.style.color = 'var(--neon)';
+        else previewEl.style.color = '#666';
+    }
+
+    // Capture the timestamp metric and re-index the sidebar layout priorities
+    roomTimestamps[m.room] = new Date(m.timestamp || Date.now()).getTime();
+    updateSidebarSorting(m.room);
+    // ===================================================================================
 
     if (m.room === curRoom) {
         appendMsg(m);
@@ -534,6 +652,194 @@ window.onload = () => {
             document.getElementById('search-drop').style.display = 'none';
         }
     });
+    document.addEventListener('touchstart', (e) => {
+        // If the user taps anywhere outside an active reaction menu, close all menus
+        if (!e.target.closest('.reaction-trigger-zone') && !e.target.closest('.bubble-content')) {
+            document.querySelectorAll('.reaction-trigger-zone').forEach(zone => {
+                zone.style.display = 'none';
+            });
+        }
+    }, { passive: true });
 
     closeSidebarOnChatClick();
 };
+
+//CLUSTER NODE PROVISIONING
+function promptClusterInvite() {
+    if (!curRoom || !curRoom.startsWith('CLUSTER_')) return;
+    
+    const html = `
+        <h2 style="color:var(--neon); text-align:center; margin-bottom:1rem;">SPLICE NODE INTO STREAM</h2>
+        <p style="font-size:0.85rem; opacity:0.7; margin-bottom:1.5rem; text-align:center;">Input the exact identity signature identifier to connect them directly to this operational cluster pipeline.</p>
+        <input id="invite-target-uid" class="gate-input" placeholder="IDENTITY_ID" autocomplete="off" spellcheck="false">
+        <button class="gate-btn" onclick="submitClusterInvite()" style="margin-top:10px;">AUTHORIZE SYNC</button>
+        <button class="gate-btn outline" onclick="closeModal()" style="margin-top:8px;">ABORT</button>
+    `;
+    showModal(html);
+    setTimeout(() => document.getElementById('invite-target-uid')?.focus(), 150);
+}
+
+function submitClusterInvite() {
+    const targetUsername = document.getElementById('invite-target-uid').value.trim();
+    if (!targetUsername) return showNotify("Target Identity ID required", "SYSTEM", "error");
+
+    socket.emit('invite_to_cluster', {
+        roomId: curRoom,
+        targetUsername: targetUsername
+    });
+    closeModal();
+}
+//METRIC ORDERING ALGORITHM 
+function updateSidebarSorting(roomId) {
+    const node = document.getElementById(`node-${roomId}`);
+    if (!node) return;
+
+    const timestamp = roomTimestamps[roomId] || 0;
+    
+    let calculatedOrder;
+    if (timestamp === 0) {
+        calculatedOrder = 999999999; 
+    } else {
+        calculatedOrder = -Math.floor(timestamp / 1000); 
+    }
+    
+    node.style.order = calculatedOrder;
+}
+
+///EMOJI
+function openEmojiPickerModal(targetMsgId = null) {
+    const categories = [
+        {
+            name: "SMILEYS",
+            glyphs: ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗","🤔","🤭","🤫","🤥","😶","😐","😑","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃"]
+        },
+        {
+            name: "HAND SIGNS",
+            glyphs: ["👍","👎","✊","👊","🤛","🤜","🤞","✌️","🤟","🤘","👌","🤌","🤏","👈","👉","👆","👇","☝️","✋","🤚","🖐️","🖖","👋","🤙","💪","🦾","🖕","✍️","🙏","🤝","👏","🙌","👐","🤲"]
+        },
+        {
+            name: "HEART",
+            glyphs: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❣️","💕","💞","💓","💗","💖","💘","💝","💟", "🔥", "👑", "💯", "🚀", "⭐", "🎉", "🎊", "🎈", "🎂", "🎄", "🎆", "🎇", "🧨", "✨", "⚽", "🏀", "🏈", "🎮", "🕹️", "🎰"]
+        }
+    ];
+    
+    let html = `
+        <h2 style="color:var(--neon); text-align:center; margin-bottom:1rem;">SELECT TRANSMISSION GLYPH</h2>
+        <div class="glyph-matrix-viewport">
+    `;
+    
+    categories.forEach(cat => {
+        html += `
+            <div class="glyph-category-segment">
+                <div class="emoji-category-title">_${cat.name}</div>
+                <div class="emoji-category-grid">
+        `;
+        
+        cat.glyphs.forEach(emoji => {
+            //Pass targetMsgId dynamically into the click handler string
+            html += `<span onclick="insertEmoji('${emoji}', ${targetMsgId ? `'${targetMsgId}'` : 'null'})" class="react-btn">${emoji}</span>`;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `</div><button class="gate-btn outline" onclick="closeModal()" style="margin-top:15px;">DISMISS</button>`;
+    showModal(html);
+}
+
+// UNIFIED GLYPH ROUTER ENGINE
+function insertEmoji(emoji, targetMsgId = null) {
+    if (targetMsgId && targetMsgId !== 'null') {
+        // ROUTE A: A target message signature exists. Dispatch straight to backend reaction logs!
+        submitReaction(targetMsgId, emoji);
+    } else {
+        // ROUTE B: Fallback to active terminal message buffer typing
+        const input = document.getElementById('m-in');
+        if (input) {
+            input.value += emoji;
+            input.focus();
+        }
+    }
+    closeModal();
+}
+
+
+//REAL-TIME REACTION DISPATCHERS 
+function submitReaction(msgId, emoji) {
+    socket.emit('message_reaction', { msgId, emoji });
+    
+    // Forcibly hide the hovering zone instantly after clicking an emoji
+    const triggerZone = document.querySelector(`#msg-${msgId} .reaction-trigger-zone`);
+    if (triggerZone) {
+        // Temporarily override the display to hide it until the user moves their mouse away/taps off
+        triggerZone.style.display = 'none';
+        setTimeout(() => triggerZone.style.removeProperty('display'), 300);
+    }
+}
+
+function renderReactionBadges(msgId, reactionsArray) {
+    const tray = document.getElementById(`react-tray-${msgId}`);
+    if (!tray) return;
+    tray.innerHTML = "";
+
+    if (!reactionsArray || reactionsArray.length === 0) return;
+
+    // Group the array configurations by matching emoji keys
+    const counts = {};
+    reactionsArray.forEach(r => {
+        counts[r.emoji] = counts[r.emoji] || { count: 0, users: [] };
+        counts[r.emoji].count++;
+        counts[r.emoji].users.push(r.username.toLowerCase());
+    });
+
+    // Generate responsive pill layout DOM bindings
+    for (const [emoji, meta] of Object.entries(counts)) {
+        const badge = document.createElement('span');
+        const iReacted = meta.users.includes(me.toLowerCase());
+        
+        badge.className = `reaction-badge ${iReacted ? 'active' : ''}`;
+        badge.innerHTML = `${emoji} <span style="font-weight:bold;">${meta.count}</span>`;
+        
+        //Tapping a reaction badge opens the detailed breakdown list panel!
+        badge.onclick = (e) => {
+            e.stopPropagation();
+            viewReactionDetails(emoji, meta.users);
+        };
+        
+        tray.appendChild(badge);
+    }
+}
+//REACTION DRILLDOWN REGISTRY ======================
+function viewReactionDetails(emoji, usersArray) {
+    let html = `
+        <h2 style="color:var(--neon); text-align:center; margin-bottom:0.5rem;">REACTION DETAILS</h2>
+        <div style="text-align:center; font-size:2.5rem; margin-bottom:1.5rem;">${emoji}</div>
+        <div style="color:var(--neon); font-size:0.75rem; letter-spacing:2px; margin-bottom:8px; opacity:0.7; border-bottom:1px solid var(--border); padding-bottom:4px;">
+            _IDENTIFIED_OPERATIVES (${usersArray.length})
+        </div>
+        <div style="max-height:35vh; overflow-y:auto; padding-right:5px; margin-bottom:1.5rem;">
+    `;
+
+    usersArray.forEach(user => {
+        const isItMe = user.toLowerCase() === me.toLowerCase();
+        html += `
+            <div style="display:flex; align-items:center; justify-content:between; padding:10px; border-bottom:1px solid rgba(255,255,255,0.03); font-family:'JetBrains Mono', monospace;">
+                <span style="color:#fff; font-weight:bold;">${escapeHTML(user)}</span>
+                ${isItMe ? '<span style="color:var(--neon); font-size:0.8rem; margin-left:auto;">(YOU)</span>' : ''}
+            </div>
+        `;
+    });
+
+    html += `
+        </div>
+        <button class="gate-btn outline" onclick="closeModal()" style="width:100%;">DISMISS</button>
+    `;
+    showModal(html);
+}
+// Global live channel broadcast listener loop binding intercepts
+socket.on('reaction_updated', ({ msgId, reactions }) => {
+    renderReactionBadges(msgId, reactions);
+});
