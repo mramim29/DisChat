@@ -1352,3 +1352,16 @@ socket.on('ttt_duel_search_results', ({ users }) => {
         duelDrop.appendChild(div);
     });
 });
+
+// --- PROGRESSIVE WEB APP HANDSHAKE ENGINE ---
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+                console.log('>>> [PWA_SYSTEM]: Core Pipeline Linked on Scope: ', registration.scope);
+            })
+            .catch(error => {
+                console.error('❌ [PWA_SYSTEM]: Core Pipeline Connection Aborted: ', error);
+            });
+    });
+}
