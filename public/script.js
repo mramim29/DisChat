@@ -214,7 +214,7 @@ function joinRoom(id, name) {
     const actionContainer = document.getElementById('header-actions');
     if (actionContainer) {
         if (id.startsWith('CLUSTER_')) {
-            // Displays both the cluster invite button and your new game launcher button side-by-side
+            // Displays both the cluster invite button and new game launcher button side-by-side
             actionContainer.innerHTML = `
                 <button class="gate-btn outline" onclick="promptClusterInvite()" style="margin: 0 8px 0 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; display: inline-block;">
                     [+ ADD PEOPLE]
@@ -548,7 +548,7 @@ socket.on('search_results', ({ users, groups }) => {
         }
 
         users.forEach(u => {
-            if (u.username.toLowerCase() === me.toLowerCase()) return; // Prevent challenging yourself
+            if (u.username.toLowerCase() === me.toLowerCase()) return; 
 
             const div = document.createElement('div');
             div.className = 'nav-item';
@@ -1325,7 +1325,7 @@ socket.on('ttt_duel_search_results', ({ users }) => {
     }
 
     users.forEach(u => {
-        if (u.username.toLowerCase() === me.toLowerCase()) return; // Block challenging yourself
+        if (u.username.toLowerCase() === me.toLowerCase()) return; 
 
         const div = document.createElement('div');
         div.className = 'nav-item';

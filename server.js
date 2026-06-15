@@ -308,7 +308,6 @@ io.on('connection', (socket) => {
     });
 
     // JOIN ROOM
-   // REPLACE your entire socket.on('join_room', ...) listener with this:
 socket.on('join_room', async (roomId) => {
     try {
         if (!roomId || !socket.data.username) return;

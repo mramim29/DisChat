@@ -19,7 +19,7 @@ self.addEventListener('install', (event) => {
 });
 
 // 2. Network-First, Cache-Fallback Strategy
-// This allows your UI to load fast while letting socket.io take over live connections
+// This allows UI to load fast while letting socket.io take over live connections
 self.addEventListener('fetch', (event) => {
   // Ignore Socket.io traffic handshake requests completely
   if (event.request.url.includes('socket.io')) return;
