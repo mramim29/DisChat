@@ -639,7 +639,7 @@ if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) {
     console.warn("⚠️ [PWA_SYSTEM]: VAPID keys missing from environment. Background push alerts are disabled.");
 } else {
     webpush.setVapidDetails(
-        'mohammad.ramim29@gmail.com',
+        'mailto:mohammad.ramim29@gmail.com',
         PUBLIC_VAPID_KEY,
         PRIVATE_VAPID_KEY
     );
