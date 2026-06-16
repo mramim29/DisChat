@@ -378,7 +378,7 @@ socket.on('join_room', async (roomId) => {
             await msg.save();
 
             io.to(p.room).emit('new_msg', msg);
-            broadcastSystemNotification(`New message from ${socket.data.username}`, p.text.trim());
+            broadcastSystemNotification(`[${roomName || 'Matrix'}] ${p.user}`, p.text.trim(), p.user);
 
         } catch (err) {
             console.error("[SEND_MSG_ERROR]", err);
@@ -622,21 +622,37 @@ if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) {
 let deviceSubscriptions = [];
 
 // API Endpoint to collect subscription map strings from incoming devices
+
 app.post('/api/register-push-device', (req, res) => {
-    const subscription = req.body;
-    if (!subscription || !subscription.endpoint) {
-        return res.status(400).json({ error: 'Invalid device registration layout.' });
+    const { subscription, username } = req.body; // Extract user profile contextual context
+    
+    if (!subscription || !subscription.endpoint || !username) {
+        return res.status(400).json({ error: 'Invalid device registration layout. Missing properties.' });
     }
     
-    // Evade duplicates
-    if (!deviceSubscriptions.some(sub => sub.endpoint === subscription.endpoint)) {
-        deviceSubscriptions.push(subscription);
+    const targetUser = username.trim().toLowerCase();
+
+    // Check if this specific device endpoint is already tracked
+    const existingIndex = deviceSubscriptions.findIndex(item => item.subscription.endpoint === subscription.endpoint);
+
+    if (existingIndex !== -1) {
+        // Update user session map if account swapped roles on device
+        deviceSubscriptions[existingIndex].username = targetUser;
+    } else {
+        // Register unique structural map element
+        deviceSubscriptions.push({
+            username: targetUser,
+            subscription: subscription
+        });
+        console.log(`>>> [PWA_BACKEND]: Secure device link mapped for [${targetUser}].`);
     }
+    
     res.status(201).json({ status: 'success' });
 });
 
 // A core function to broadcast alerts to all background devices
-function broadcastSystemNotification(titleText, bodyText) {
+// Upgraded conditional engine to broadcast alerts while blocking self-notifications
+function broadcastSystemNotification(titleText, bodyText, senderUsername = null) {
     if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
 
     const payload = JSON.stringify({
@@ -644,10 +660,17 @@ function broadcastSystemNotification(titleText, bodyText) {
         body: bodyText
     });
 
-    deviceSubscriptions.forEach((subscription, index) => {
-        webpush.sendNotification(subscription, payload)
+    const normalizedSender = senderUsername ? senderUsername.trim().toLowerCase() : null;
+
+    deviceSubscriptions.forEach((entry, index) => {
+        // INTERCEPTOR: If this device is registered to the person who sent the message, skip it!
+        if (normalizedSender && entry.username === normalizedSender) {
+            return; 
+        }
+
+        // Send push to everyone else (note: entry.subscription is used now since our array structure changed)
+        webpush.sendNotification(entry.subscription, payload)
             .catch(error => {
-                // If a token is expired or dead (410), purge it instantly
                 if (error.statusCode === 410) {
                     deviceSubscriptions.splice(index, 1);
                 }

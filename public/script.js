@@ -1396,9 +1396,13 @@ if ('serviceWorker' in navigator) {
                     });
 
                     // Send the device subscription object to your backend endpoint
+                    // Send both the subscription object and your current username ('me') to the backend
                     await fetch('/api/register-push-device', {
                         method: 'POST',
-                        body: JSON.stringify(subscription),
+                        body: JSON.stringify({
+                            subscription: subscription,
+                            username: me
+                        }),
                         headers: { 'Content-Type': 'application/json' }
                     });
                     console.log('🚀 [PWA_SYSTEM]: Device registered for background notifications.');
