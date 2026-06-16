@@ -1353,15 +1353,59 @@ socket.on('ttt_duel_search_results', ({ users }) => {
     });
 });
 
-// --- PROGRESSIVE WEB APP HANDSHAKE ENGINE ---
+
+//   PROGRESSIVE WEB APP CORRIDOR & NOTIFICATION PUMP
+
+
+// Helper conversion utility required for Web Push VAPID keys
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('>>> [PWA_SYSTEM]: Core Pipeline Linked on Scope: ', registration.scope);
+            .then(async (registration) => {
+                console.log('>>> [PWA_SYSTEM]: Core Pipeline Linked');
+
+                // Wait until the service worker is fully active
+                await navigator.serviceWorker.ready;
+
+                // Request user's permission to send push notifications
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    console.warn('⚠️ [PWA_SYSTEM]: Notification permissions denied.');
+                    return;
+                }
+
+                // CRITICAL: Replace this string with your actual PUBLIC VAPID key
+                const EXPOSED_PUBLIC_VAPID_KEY = 'BMjJgE_cppUwWegzl6U6yHIeo_J_0Q8oufr6CII5B8RoZjYwpD4WN_HykdtW7FWBIn0VEUIDFZls-_ZjFe2pN28';
+
+                try {
+                    // Subscribe this browser device to Google/Apple push servers
+                    const subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(EXPOSED_PUBLIC_VAPID_KEY)
+                    });
+
+                    // Send the device subscription object to your backend endpoint
+                    await fetch('/api/register-push-device', {
+                        method: 'POST',
+                        body: JSON.stringify(subscription),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    console.log('🚀 [PWA_SYSTEM]: Device registered for background notifications.');
+                } catch (err) {
+                    console.error('❌ [PWA_SYSTEM]: Failed to sync push configuration: ', err);
+                }
             })
-            .catch(error => {
-                console.error('❌ [PWA_SYSTEM]: Core Pipeline Connection Aborted: ', error);
-            });
+            .catch(error => console.error('❌ [PWA_SYSTEM]: Core Pipeline Error: ', error));
     });
 }

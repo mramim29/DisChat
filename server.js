@@ -377,6 +377,7 @@ socket.on('join_room', async (roomId) => {
             await msg.save();
 
             io.to(p.room).emit('new_msg', msg);
+            broadcastSystemNotification(`New message from ${socket.data.username}`, p.text.trim());
 
         } catch (err) {
             console.error("[SEND_MSG_ERROR]", err);
@@ -597,6 +598,61 @@ socket.on('match_timeout_close', async ({ matchId }) => {
         console.log(`[NET] Port closed: ${socket.id}`);
     });
 });
+// ==========================================
+//   PROGRESSIVE WEB APP PUSH SYSTEM MATRIX
+// ==========================================
+const webpush = require('web-push');
+
+// Securely read from environment variables (NEVER hardcoded)
+const PUBLIC_VAPID_KEY = process.env.VAPID_PUBLIC_KEY;
+const PRIVATE_VAPID_KEY = process.env.VAPID_PRIVATE_KEY;
+
+if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) {
+    console.warn("⚠️ [PWA_SYSTEM]: VAPID keys missing from environment. Background push alerts are disabled.");
+} else {
+    webpush.setVapidDetails(
+        'mailto:admin@dischat.local',
+        PUBLIC_VAPID_KEY,
+        PRIVATE_VAPID_KEY
+    );
+}
+
+// Memory storage tracking active device tokens (Keep it simple before DB setup)
+let deviceSubscriptions = [];
+
+// API Endpoint to collect subscription map strings from incoming devices
+app.post('/api/register-push-device', (req, res) => {
+    const subscription = req.body;
+    if (!subscription || !subscription.endpoint) {
+        return res.status(400).json({ error: 'Invalid device registration layout.' });
+    }
+    
+    // Evade duplicates
+    if (!deviceSubscriptions.some(sub => sub.endpoint === subscription.endpoint)) {
+        deviceSubscriptions.push(subscription);
+    }
+    res.status(201).json({ status: 'success' });
+});
+
+// A core function to broadcast alerts to all background devices
+function broadcastSystemNotification(titleText, bodyText) {
+    if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
+
+    const payload = JSON.stringify({
+        title: titleText,
+        body: bodyText
+    });
+
+    deviceSubscriptions.forEach((subscription, index) => {
+        webpush.sendNotification(subscription, payload)
+            .catch(error => {
+                // If a token is expired or dead (410), purge it instantly
+                if (error.statusCode === 410) {
+                    deviceSubscriptions.splice(index, 1);
+                }
+            });
+    });
+}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
