@@ -675,12 +675,14 @@ function broadcastSystemNotification(titleText, bodyText, senderUsername = null)
     if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
 
     const payload = JSON.stringify({ title: titleText, body: bodyText });
+    // Normalize to prevent case-sensitivity issues (e.g., 'Ramim' vs 'ramim')
     const normalizedSender = senderUsername ? senderUsername.trim().toLowerCase() : null;
 
     deviceSubscriptions.forEach((entry, index) => {
-        // INTERCEPTOR: Do not send a push notification back to the person who sent the message!
-        if (normalizedSender && entry.username === normalizedSender) {
-            return;
+        // --- THE FIX ---
+        // If the device's registered user is the same as the sender, skip this iteration!
+        if (normalizedSender && entry.username && entry.username.toLowerCase() === normalizedSender) {
+            return; 
         }
 
         webpush.sendNotification(entry.subscription, payload)
