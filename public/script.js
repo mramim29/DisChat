@@ -788,6 +788,7 @@ socket.on('login_success', (d) => {
     if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
     }
+    registerPushDevice();
 });
 
 socket.on('cluster_joined', g => { 
@@ -1372,53 +1373,35 @@ function urlBase64ToUint8Array(base64String) {
     return outputArray;
 }
 
-if ('serviceWorker' in navigator && 'PushManager' in window) {
+// 1. Register the worker silently on load
+if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
-            .then(async (registration) => {
-                console.log('🏁 [PWA_SYSTEM]: Core Pipeline Online.');
-
-                // Reactive Interceptor Loop: Wait until user identity context is populated
-                const secureSyncInterval = setInterval(async () => {
-                    if (me && me.trim() !== "") {
-                        clearInterval(secureSyncInterval); // Kill the loop immediately when username is caught
-
-                        console.log(`🚀 [PWA_SYSTEM]: Identity detected [${me}]. Synchronizing background token matrix...`);
-
-                        const permission = await Notification.requestPermission();
-                        if (permission !== 'granted') {
-                            console.warn('⚠️ [PWA_SYSTEM]: Notification permissions denied by hardware policy.');
-                            return;
-                        }
-
-                        const EXPOSED_PUBLIC_VAPID_KEY = 'BMjJgE_cppUwWegzl6U6yHIeo_J_0Q8oufr6CII5B8RoZjYwpD4WN_HykdtW7FWBIn0VEUIDFZls-_ZjFe2pN28';
-
-                        try {
-                            const subscription = await registration.pushManager.subscribe({
-                                userVisibleOnly: true,
-                                applicationServerKey: urlBase64ToUint8Array(EXPOSED_PUBLIC_VAPID_KEY)
-                            });
-
-                            const syncResponse = await fetch('/api/register-push-device', {
-                                method: 'POST',
-                                body: JSON.stringify({
-                                    subscription: subscription,
-                                    username: me
-                                }),
-                                headers: { 'Content-Type': 'application/json' }
-                            });
-
-                            if (syncResponse.ok) {
-                                console.log('🚀 [PWA_SYSTEM]: Mobile device successfully linked to background notifications.');
-                            } else {
-                                console.error('❌ [PWA_SYSTEM]: Backend rejected configuration with status:', syncResponse.status);
-                            }
-                        } catch (err) {
-                            console.error('❌ [PWA_SYSTEM]: Push server handshake negotiation failed: ', err);
-                        }
-                    }
-                }, 1000); // Polling checks every 1000ms until authenticated
-            })
-            .catch(error => console.error('❌ [PWA_SYSTEM]: Core Pipeline Error: ', error));
+            .then(() => console.log('>>> [PWA_SYSTEM]: Core Pipeline Linked'))
+            .catch(error => console.error('❌ [PWA_SYSTEM]: Pipeline Error: ', error));
     });
+}
+
+// 2. Standalone function to sync token WITH username
+async function registerPushDevice() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        const EXPOSED_PUBLIC_VAPID_KEY = 'BMjJgE_cppUwWegzl6U6yHIeo_J_0Q8oufr6CII5B8RoZjYwpD4WN_HykdtW7FWBIn0VEUIDFZls-_ZjFe2pN28';
+        
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(EXPOSED_PUBLIC_VAPID_KEY)
+        });
+
+        // Send BOTH subscription and username to the backend
+        await fetch('/api/register-push-device', {
+            method: 'POST',
+            body: JSON.stringify({ subscription: subscription, username: me }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        console.log('🚀 [PWA_SYSTEM]: Device linked to background notifications.');
+    } catch (err) {
+        console.error('❌ [PWA_SYSTEM]: Failed to sync push configuration: ', err);
+    }
 }
