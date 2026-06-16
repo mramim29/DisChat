@@ -67,11 +67,24 @@ self.addEventListener('push', (event) => {
     const notificationOptions = {
         body: payload.body,
         icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        vibrate: [100, 50, 100],
-        data: { url: '/' }, // Launches app root directory on interaction
-        tag: 'dischat-message-sync',
-        renotify: true
+        badge: '/icon-192.png', // Small icon for the top Android status bar
+        
+        vibrate: [200, 100, 200], 
+        
+        data: { url: '/' },
+        
+        //STACKING AND GROUPING LIKE MESSENGER
+        // Using 'dischat-msg-group' clusters notifications from the same app together
+        tag: 'dischat-msg-group', 
+        
+        // FORCE ALERT BEHAVIOR
+      
+        renotify: true,
+        
+        //  MAX VISIBILITY RULES FOR MOBILE OPERATING SYSTEMS
+       
+        behavior: 'default',
+        requireInteraction: false
     };
 
     event.waitUntil(
