@@ -33,6 +33,11 @@ const User = mongoose.model('User', new mongoose.Schema({
     groups: [{ roomId: String, groupName: String, isDM: Boolean }]
 }, { timestamps: true }));
 
+const PushSubscription = mongoose.model('PushSubscription', new mongoose.Schema({
+    username: { type: String, required: true, lowercase: true },
+    subscription: { type: Object, required: true }
+}));
+
 const Group = mongoose.model('Group', new mongoose.Schema({
     roomId: { type: String, unique: true, required: true },
     groupName: { type: String, required: true, trim: true },
@@ -74,6 +79,28 @@ const Match = mongoose.model('Match', new mongoose.Schema({
     status: { type: String, default: "ACTIVE" }, // "ACTIVE", "WON", "DRAW", "TIMEOUT"
     winner: { type: String, default: "" }
 }, { timestamps: true }));
+
+async function notifyOfflineUser(targetUsername, senderName, messageText) {
+    try {
+        const subRecord = await PushSubscription.findOne({ username: targetUsername.toLowerCase() });
+        if (!subRecord) return; // Target user hasn't registered a device for push, exit out
+
+        const payload = JSON.stringify({
+            title: `New Transmission from ${senderName}`,
+            body: messageText
+        });
+
+        await webpush.sendNotification(subRecord.subscription, payload);
+    } catch (error) {
+        if (error.statusCode === 410) {
+            // The push service states the token expired or uninstalled -> clean up DB
+            await PushSubscription.deleteOne({ username: targetUsername.toLowerCase() });
+        } else {
+            console.error("Web-Push delivery exception:", error);
+        }
+    }
+}
+
 
 //SOCKET EVENTS
 io.on('connection', (socket) => {
@@ -612,7 +639,7 @@ if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) {
     console.warn("⚠️ [PWA_SYSTEM]: VAPID keys missing from environment. Background push alerts are disabled.");
 } else {
     webpush.setVapidDetails(
-        'mailto:admin@dischat.local',
+        'mohammad.ramim29@gmail.com',
         PUBLIC_VAPID_KEY,
         PRIVATE_VAPID_KEY
     );
@@ -623,31 +650,26 @@ let deviceSubscriptions = [];
 
 // API Endpoint to collect subscription map strings from incoming devices
 
-app.post('/api/register-push-device', (req, res) => {
-    const { subscription, username } = req.body; // Extract user profile contextual context
-    
-    if (!subscription || !subscription.endpoint || !username) {
-        return res.status(400).json({ error: 'Invalid device registration layout. Missing properties.' });
-    }
-    
-    const targetUser = username.trim().toLowerCase();
+app.post('/api/register-push-device', async (req, res) => {
+    try {
+        const { username, subscription } = req.body;
+        
+        if (!username || !subscription) {
+            return res.status(400).json({ error: 'Missing username or subscription object.' });
+        }
 
-    // Check if this specific device endpoint is already tracked
-    const existingIndex = deviceSubscriptions.findIndex(item => item.subscription.endpoint === subscription.endpoint);
+        // Saves a new device token, or updates it if the username already exists
+        await PushSubscription.findOneAndUpdate(
+            { username: username.toLowerCase() },
+            { subscription: subscription },
+            { upsert: true, new: true }
+        );
 
-    if (existingIndex !== -1) {
-        // Update user session map if account swapped roles on device
-        deviceSubscriptions[existingIndex].username = targetUser;
-    } else {
-        // Register unique structural map element
-        deviceSubscriptions.push({
-            username: targetUser,
-            subscription: subscription
-        });
-        console.log(`>>> [PWA_BACKEND]: Secure device link mapped for [${targetUser}].`);
+        res.status(201).json({ message: 'Device securely linked to database.' });
+    } catch (err) {
+        console.error('Push Registration Error:', err);
+        res.status(500).json({ error: 'Internal server initialization error.' });
     }
-    
-    res.status(201).json({ status: 'success' });
 });
 
 // A core function to broadcast alerts to all background devices
