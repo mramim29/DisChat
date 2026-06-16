@@ -748,6 +748,9 @@ socket.on('login_success', (d) => {
     isVipUser = !!d.isVip;
     localStorage.setItem('dischat_username', me);
 
+    if (typeof syncDevicePushNotification === 'function') {
+    syncDevicePushNotification();
+        }
     if (document.getElementById('manual-layer')) document.getElementById('manual-layer').style.display = 'none';
     if (document.getElementById('offline-overlay')) document.getElementById('offline-overlay').style.display = 'none';
     document.getElementById('auth-layer').style.display = 'none';
@@ -1369,46 +1372,52 @@ function urlBase64ToUint8Array(base64String) {
     return outputArray;
 }
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && 'PushManager' in window) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
             .then(async (registration) => {
-                console.log('>>> [PWA_SYSTEM]: Core Pipeline Linked');
+                console.log('🏁 [PWA_SYSTEM]: Core Pipeline Online.');
 
-                // Wait until the service worker is fully active
-                await navigator.serviceWorker.ready;
+                // Reactive Interceptor Loop: Wait until user identity context is populated
+                const secureSyncInterval = setInterval(async () => {
+                    if (me && me.trim() !== "") {
+                        clearInterval(secureSyncInterval); // Kill the loop immediately when username is caught
 
-                // Request user's permission to send push notifications
-                const permission = await Notification.requestPermission();
-                if (permission !== 'granted') {
-                    console.warn('⚠️ [PWA_SYSTEM]: Notification permissions denied.');
-                    return;
-                }
+                        console.log(`🚀 [PWA_SYSTEM]: Identity detected [${me}]. Synchronizing background token matrix...`);
 
-                // CRITICAL: Replace this string with your actual PUBLIC VAPID key
-                const EXPOSED_PUBLIC_VAPID_KEY = 'BMjJgE_cppUwWegzl6U6yHIeo_J_0Q8oufr6CII5B8RoZjYwpD4WN_HykdtW7FWBIn0VEUIDFZls-_ZjFe2pN28';
+                        const permission = await Notification.requestPermission();
+                        if (permission !== 'granted') {
+                            console.warn('⚠️ [PWA_SYSTEM]: Notification permissions denied by hardware policy.');
+                            return;
+                        }
 
-                try {
-                    // Subscribe this browser device to Google/Apple push servers
-                    const subscription = await registration.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: urlBase64ToUint8Array(EXPOSED_PUBLIC_VAPID_KEY)
-                    });
+                        const EXPOSED_PUBLIC_VAPID_KEY = 'BMjJgE_cppUwWegzl6U6yHIeo_J_0Q8oufr6CII5B8RoZjYwpD4WN_HykdtW7FWBIn0VEUIDFZls-_ZjFe2pN28';
 
-                    // Send the device subscription object to your backend endpoint
-                    // Send both the subscription object and your current username ('me') to the backend
-                    await fetch('/api/register-push-device', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            subscription: subscription,
-                            username: me
-                        }),
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    console.log('🚀 [PWA_SYSTEM]: Device registered for background notifications.');
-                } catch (err) {
-                    console.error('❌ [PWA_SYSTEM]: Failed to sync push configuration: ', err);
-                }
+                        try {
+                            const subscription = await registration.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: urlBase64ToUint8Array(EXPOSED_PUBLIC_VAPID_KEY)
+                            });
+
+                            const syncResponse = await fetch('/api/register-push-device', {
+                                method: 'POST',
+                                body: JSON.stringify({
+                                    subscription: subscription,
+                                    username: me
+                                }),
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+
+                            if (syncResponse.ok) {
+                                console.log('🚀 [PWA_SYSTEM]: Mobile device successfully linked to background notifications.');
+                            } else {
+                                console.error('❌ [PWA_SYSTEM]: Backend rejected configuration with status:', syncResponse.status);
+                            }
+                        } catch (err) {
+                            console.error('❌ [PWA_SYSTEM]: Push server handshake negotiation failed: ', err);
+                        }
+                    }
+                }, 1000); // Polling checks every 1000ms until authenticated
             })
             .catch(error => console.error('❌ [PWA_SYSTEM]: Core Pipeline Error: ', error));
     });
