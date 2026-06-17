@@ -626,24 +626,32 @@ socket.on('match_timeout_close', async ({ matchId }) => {
         console.log(`[NET] Port closed: ${socket.id}`);
     });
 });
-// ==========================================
-//   PROGRESSIVE WEB APP PUSH SYSTEM MATRIX
-// ==========================================
+
+//   PROGRESSIVE WEB APP PUSH SYSTEM 
 const webpush = require('web-push');
 
-// Configure web-push with your keys
-webpush.setVapidDetails(
-    'mailto:your-email@example.com', // Replace with your email
-    process.env.PUBLIC_VAPID_KEY,
-    process.env.PRIVATE_VAPID_KEY
-);
+
+if (process.env.PUBLIC_VAPID_KEY && process.env.PRIVATE_VAPID_KEY) {
+    try {
+        webpush.setVapidDetails(
+            'mailto:your-email@example.com', 
+            process.env.PUBLIC_VAPID_KEY,
+            process.env.PRIVATE_VAPID_KEY
+        );
+        console.log('>>> [PUSH_SYSTEM]: Web-Push configured successfully.');
+    } catch (err) {
+        console.error('>>> [PUSH_ERR]: Failed to set VAPID details:', err.message);
+    }
+} else {
+    console.warn('>>> [PUSH_SYSTEM]: VAPID keys not found in environment. Notifications will be disabled.');
+}
 
 
 async function sendPushToRoom(roomId, senderUsername, title, body) {
     if (!process.env.PUBLIC_VAPID_KEY || !process.env.PRIVATE_VAPID_KEY) return;
 
     try {
-        // Fetch room members and their subscriptions in parallel
+      
         const [roomMembers, subscriptions] = await Promise.all([
             User.find({ 'groups.roomId': roomId }).select('username'),
             PushSubscription.find({

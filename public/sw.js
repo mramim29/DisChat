@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dischat-v2'; // Bumped version for clean state
+const CACHE_NAME = 'dischat-v6'; 
 const STATIC_ASSETS = ['/', '/index.html', '/style.css', '/script.js', '/manifest.json'];
 
 // Lifecycle: Install & Activate
@@ -21,7 +21,7 @@ self.addEventListener('push', (e) => {
     const options = {
         body: payload.body,
         icon: '/icon-192.png',
-        badge: '/notification-badge.png', // 96x96 transparent PNG
+        badge: '/notification-badge.png', 
         vibrate: [200, 100, 200],
         data: payload.data,
         tag: payload.data?.url || 'chat-default',
@@ -31,7 +31,7 @@ self.addEventListener('push', (e) => {
     e.waitUntil(self.registration.showNotification(payload.title, options));
 });
 
-// Notification Click: Handle context-aware navigation
+
 self.addEventListener('notificationclick', (e) => {
     e.notification.close();
     const url = new URL(e.notification.data?.url || '/', self.location.origin).href;
