@@ -723,29 +723,31 @@ app.post('/api/register-push-device', (req, res) => {
     res.status(201).json({ status: 'success' });
 });
 
+
+
 // A core function to broadcast alerts to all background devices
-function broadcastSystemNotification(titleText, bodyText, senderUsername = null) {
-    if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
+// function broadcastSystemNotification(titleText, bodyText, senderUsername = null) {
+//     if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
 
-    const payload = JSON.stringify({ title: titleText, body: bodyText });
-    // Normalize to prevent case-sensitivity issues (e.g., 'Ramim' vs 'ramim')
-    const normalizedSender = senderUsername ? senderUsername.trim().toLowerCase() : null;
+//     const payload = JSON.stringify({ title: titleText, body: bodyText });
+//     // Normalize to prevent case-sensitivity issues (e.g., 'Ramim' vs 'ramim')
+//     const normalizedSender = senderUsername ? senderUsername.trim().toLowerCase() : null;
 
-    deviceSubscriptions.forEach((entry, index) => {
-        // --- THE FIX ---
-        // If the device's registered user is the same as the sender, skip this iteration!
-        if (normalizedSender && entry.username && entry.username.toLowerCase() === normalizedSender) {
-            return; 
-        }
+//     deviceSubscriptions.forEach((entry, index) => {
+//         // --- THE FIX ---
+//         // If the device's registered user is the same as the sender, skip this iteration!
+//         if (normalizedSender && entry.username && entry.username.toLowerCase() === normalizedSender) {
+//             return; 
+//         }
 
-        webpush.sendNotification(entry.subscription, payload)
-            .catch(error => {
-                if (error.statusCode === 410) {
-                    deviceSubscriptions.splice(index, 1);
-                }
-            });
-    });
-}
+//         webpush.sendNotification(entry.subscription, payload)
+//             .catch(error => {
+//                 if (error.statusCode === 410) {
+//                     deviceSubscriptions.splice(index, 1);
+//                 }
+//             });
+//     });
+// }
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
