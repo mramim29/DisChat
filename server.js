@@ -86,7 +86,7 @@ async function notifyOfflineUser(targetUsername, senderName, messageText) {
         if (!subRecord) return; // Target user hasn't registered a device for push, exit out
 
         const payload = JSON.stringify({
-            title: `New Transmission from ${senderName}`,
+            title: `from ${senderName}`,
             body: messageText
         });
 
@@ -237,7 +237,7 @@ io.on('connection', (socket) => {
             const groupRef = { roomId, groupName: data.groupName.trim(), isDM: false };
             await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: groupRef } });
 
-            // Ensure the creator physically joins the socket channel
+            
             socket.join(roomId);
 
             socket.emit('cluster_joined', groupRef);
@@ -631,72 +631,51 @@ socket.on('match_timeout_close', async ({ matchId }) => {
 // ==========================================
 const webpush = require('web-push');
 
-// Securely read from environment variables (NEVER hardcoded)
-const PUBLIC_VAPID_KEY = process.env.VAPID_PUBLIC_KEY;
-const PRIVATE_VAPID_KEY = process.env.VAPID_PRIVATE_KEY;
+// Configure web-push with your keys
+webpush.setVapidDetails(
+    'mailto:your-email@example.com', // Replace with your email
+    process.env.PUBLIC_VAPID_KEY,
+    process.env.PRIVATE_VAPID_KEY
+);
 
-if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) {
-    console.warn("⚠️ [PWA_SYSTEM]: VAPID keys missing from environment. Background push alerts are disabled.");
-} else {
-    webpush.setVapidDetails(
-        'mailto:mohammad.ramim29@gmail.com',
-        PUBLIC_VAPID_KEY,
-        PRIVATE_VAPID_KEY
-    );
-}
 
-//   PUSH NOTIFICATION – ROOM‑AWARE SENDER
 async function sendPushToRoom(roomId, senderUsername, title, body) {
-    // If VAPID keys are missing, skip
-    if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
+    if (!process.env.PUBLIC_VAPID_KEY || !process.env.PRIVATE_VAPID_KEY) return;
 
-    let targetUsernames = [];
-
-    // 1. Determine who should receive the push based on the room
-    if (roomId === 'global') {
-        // Notify all approved users except sender
-        const allUsers = await User.find({ isApproved: true }).select('username');
-        targetUsernames = allUsers.map(u => u.username).filter(u => u !== senderUsername);
-    } 
-    else if (roomId.startsWith('DM_')) {
-        // Extract the other participant from the DM room ID
-        const parts = roomId.split('_').slice(1);
-        const other = parts.find(u => u !== senderUsername);
-        if (other) targetUsernames = [other];
-    } 
-    else if (roomId.startsWith('CLUSTER_')) {
-        // Fetch the group members from the database
-        const group = await Group.findOne({ roomId });
-        if (group) {
-            targetUsernames = group.members.filter(u => u !== senderUsername);
-        }
-    } 
-    else {
-        // Unknown room type – send to no one
-        return;
-    }
-
-    // 2. For each target, find their subscription and send the push
-    for (const username of targetUsernames) {
-        const entry = deviceSubscriptions.find(
-            sub => sub.username.toLowerCase() === username.toLowerCase()
-        );
-        if (entry) {
-            try {
-                await webpush.sendNotification(
-                    entry.subscription,
-                    JSON.stringify({ title, body })
-                );
-            } catch (error) {
-                if (error.statusCode === 410) {
-                    // Subscription expired – remove it
-                    const idx = deviceSubscriptions.indexOf(entry);
-                    if (idx > -1) deviceSubscriptions.splice(idx, 1);
-                } else {
-                    console.error(`Push failed for ${username}:`, error);
+    try {
+        // Fetch room members and their subscriptions in parallel
+        const [roomMembers, subscriptions] = await Promise.all([
+            User.find({ 'groups.roomId': roomId }).select('username'),
+            PushSubscription.find({
+                username: { 
+                    $in: await User.find({ 'groups.roomId': roomId }).distinct('username'),
+                    $ne: senderUsername.toLowerCase()
                 }
-            }
-        }
+            })
+        ]);
+
+        const payload = JSON.stringify({
+            title: title, // senderUsername
+            body: body,
+            data: { url: `/room/${roomId}` }
+        });
+
+        // Use Promise.allSettled to ensure one failure doesn't stop the entire batch
+        const results = await Promise.allSettled(
+            subscriptions.map(record => 
+                webpush.sendNotification(record.subscription, payload)
+                    .catch(async (err) => {
+                        if (err.statusCode === 410 || err.statusCode === 404) {
+                            await PushSubscription.deleteOne({ _id: record._id });
+                        }
+                        throw err;
+                    })
+            )
+        );
+        
+        console.log(`[PUSH_SYSTEM]: Delivery complete. Processed ${results.length} subscriptions.`);
+    } catch (err) {
+        console.error('[PUSH_ERR]: Failed to broadcast to room:', err);
     }
 }
 // Memory storage tracking active device tokens (Keep it simple before DB setup)
@@ -704,21 +683,20 @@ let deviceSubscriptions = [];
 
 // API Endpoint to collect subscription map strings from incoming devices
 
-app.post('/api/register-push-device', (req, res) => {
+app.post('/api/register-push-device', async (req, res) => {
     const { subscription, username } = req.body;
     if (!subscription || !subscription.endpoint || !username) {
         return res.status(400).json({ error: 'Invalid device registration layout.' });
     }
     
     const targetUser = username.trim().toLowerCase();
-    const existing = deviceSubscriptions.find(sub => sub.subscription.endpoint === subscription.endpoint);
-
-    // If device exists, update the user logged into it. If new, push it.
-    if (existing) {
-        existing.username = targetUser;
-    } else {
-        deviceSubscriptions.push({ username: targetUser, subscription: subscription });
-    }
+    
+    // Save to MongoDB
+    await PushSubscription.updateOne(
+        { username: targetUser },
+        { $set: { subscription: subscription } },
+        { upsert: true }
+    );
     
     res.status(201).json({ status: 'success' });
 });

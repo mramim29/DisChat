@@ -1,101 +1,45 @@
-const CACHE_NAME = 'dischat-matrix-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/script.js',
-  '/manifest.json',
-  '/favicon.ico'
-];
+const CACHE_NAME = 'dischat-v2'; // Bumped version for clean state
+const STATIC_ASSETS = ['/', '/index.html', '/style.css', '/script.js', '/manifest.json'];
 
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('>>> [PWA_CORE]: Core Shell Buffered Successfully');
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
-});
+// Lifecycle: Install & Activate
+self.addEventListener('install', (e) => self.skipWaiting());
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('>>> [PWA_CORE]: Purging Legacy Cache Bin:', cache);
-            return caches.delete(cache);
-          }
-        })
-      );
-    }).then(() => self.clients.claim()) // Clear control pathways instantly
-  );
-});
-
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('socket.io')) return;
-
-  event.respondWith(
-    fetch(event.request)
-      .catch(() => {
-        return caches.match(event.request);
-      })
-  );
-});
-
-
-self.addEventListener('push', (event) => {
-    let payload = { title: 'New Message', body: 'Incoming secure data link established.' };
-    
-    if (event.data) {
-        try {
-            payload = event.data.json();
-        } catch (e) {
-            payload.body = event.data.text();
-        }
-    }
-
-    const notificationOptions = {
-        body: payload.body,
-        icon: '/icon-192.png',
-        badge: '/icon-192.png', // Small icon for the top Android status bar
-        
-        vibrate: [200, 100, 200], 
-        
-        data: { url: '/' },
-        
-        tag: 'dischat-msg-group', 
-        
-      
-        renotify: true,
-        
-       
-        behavior: 'default',
-        requireInteraction: false
-    };
-
-    event.waitUntil(
-        self.registration.showNotification(payload.title, notificationOptions)
+self.addEventListener('activate', (e) => {
+    e.waitUntil(
+        caches.keys().then(keys => Promise.all(keys.map(k => k !== CACHE_NAME && caches.delete(k))))
+        .then(() => self.clients.claim())
     );
 });
 
-self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    
-    const targetUrl = new URL(event.notification.data.url, self.location.origin).href;
+// Push Event: Handle incoming alerts
+self.addEventListener('push', (e) => {
+    let payload = { title: 'New Message', body: '...' };
+    if (e.data) {
+        try { payload = e.data.json(); } catch (err) { payload.body = e.data.text(); }
+    }
 
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-            for (let client of windowClients) {
-                if (client.url === targetUrl && 'focus' in client) {
-                    return client.focus();
-                }
-            }
-            if (clients.openWindow) {
-                return clients.openWindow(targetUrl);
-            }
+    const options = {
+        body: payload.body,
+        icon: '/icon-192.png',
+        badge: '/notification-badge.png', // 96x96 transparent PNG
+        vibrate: [200, 100, 200],
+        data: payload.data,
+        tag: payload.data?.url || 'chat-default',
+        renotify: true
+    };
+
+    e.waitUntil(self.registration.showNotification(payload.title, options));
+});
+
+// Notification Click: Handle context-aware navigation
+self.addEventListener('notificationclick', (e) => {
+    e.notification.close();
+    const url = new URL(e.notification.data?.url || '/', self.location.origin).href;
+
+    e.waitUntil(
+        clients.matchAll({ type: 'window' }).then(clients => {
+            const client = clients.find(c => c.url.includes(url) && 'focus' in c);
+            return client ? client.focus() : self.clients.openWindow(url);
         })
     );
 });

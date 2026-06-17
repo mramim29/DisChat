@@ -1,8 +1,8 @@
 {
   "name": "DisChat Cyber Messenger",
   "short_name": "DisChat",
-  "version": "6.0.33",
-  "description": "DisChat Cyber Messenger is a terminal-inspired, real-time messaging matrix designed for secure, distraction-free communication.",
+  "version": "6.0.35",
+  "description": "DisChat Cyber Messenger is a terminal-inspired, real-time messaging app designed for secure, distraction-free communication.",
   "icons": [
     {
       "src": "icon-192.png",
@@ -21,5 +21,7 @@
   "background_color": "#050608",
   "theme_color": "#00f2ff",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "categories": ["social", "communication"],
+  "prefer_related_applications": false
 }
