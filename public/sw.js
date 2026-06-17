@@ -1,45 +1,83 @@
-const CACHE_NAME = 'dischat-v6'; 
-const STATIC_ASSETS = ['/', '/index.html', '/style.css', '/script.js', '/manifest.json'];
+const CACHE_NAME = 'dischat-matrix-v2';
+const STATIC_ASSETS = [
+    '/',
+    '/index.html',
+    '/style.css',
+    '/script.js',
+    '/manifest.json'
+];
 
-// Lifecycle: Install & Activate
-self.addEventListener('install', (e) => self.skipWaiting());
-
-self.addEventListener('activate', (e) => {
-    e.waitUntil(
-        caches.keys().then(keys => Promise.all(keys.map(k => k !== CACHE_NAME && caches.delete(k))))
-        .then(() => self.clients.claim())
+// 1. Install: Cache the shell
+self.addEventListener('install', (event) => {
+    self.skipWaiting();
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
     );
 });
 
-// Push Event: Handle incoming alerts
-self.addEventListener('push', (e) => {
-    let payload = { title: 'New Message', body: '...' };
-    if (e.data) {
-        try { payload = e.data.json(); } catch (err) { payload.body = e.data.text(); }
+// 2. Activate: Purge legacy caches
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) => 
+            Promise.all(keys.map((k) => k !== CACHE_NAME && caches.delete(k)))
+        ).then(() => self.clients.claim())
+    );
+});
+
+// 3. Fetch: Network-first, fallback to cache
+self.addEventListener('fetch', (event) => {
+    if (event.request.url.includes('socket.io')) return;
+
+    event.respondWith(
+        fetch(event.request)
+            .then((response) => {
+                // Update cache with fresh version
+                const responseClone = response.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+                return response;
+            })
+            .catch(() => caches.match(event.request))
+    );
+});
+
+// 4. Push: Handle incoming notifications
+self.addEventListener('push', (event) => {
+    let payload = { title: 'DisChat', body: 'New activity detected.', url: '/' };
+    
+    if (event.data) {
+        try {
+            payload = event.data.json();
+        } catch (e) {
+            payload.body = event.data.text();
+        }
     }
 
     const options = {
         body: payload.body,
         icon: '/icon-192.png',
-        badge: '/notification-badge.png', 
+        badge: '/icon-192.png',
         vibrate: [200, 100, 200],
-        data: payload.data,
-        tag: payload.data?.url || 'chat-default',
+        data: { url: payload.url || '/' }, // Carry the URL through the notification
+        tag: 'dischat-alert',
         renotify: true
     };
 
-    e.waitUntil(self.registration.showNotification(payload.title, options));
+    event.waitUntil(self.registration.showNotification(payload.title, options));
 });
 
+// 5. Notification Click: Deep link handling
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const targetUrl = new URL(event.notification.data.url, self.location.origin).href;
 
-self.addEventListener('notificationclick', (e) => {
-    e.notification.close();
-    const url = new URL(e.notification.data?.url || '/', self.location.origin).href;
-
-    e.waitUntil(
-        clients.matchAll({ type: 'window' }).then(clients => {
-            const client = clients.find(c => c.url.includes(url) && 'focus' in c);
-            return client ? client.focus() : self.clients.openWindow(url);
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            // Try to focus an existing window
+            for (const client of clientList) {
+                if (client.url === targetUrl && 'focus' in client) return client.focus();
+            }
+            // Otherwise open a new window
+            return clients.openWindow(targetUrl);
         })
     );
 });
