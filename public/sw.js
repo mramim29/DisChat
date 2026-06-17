@@ -55,9 +55,9 @@ self.addEventListener('push', (event) => {
     const options = {
         body: payload.body,
         icon: '/icon-192.png',
-        badge: '/icon-192.png',
+        badge: 'notification-badge.png',
         vibrate: [200, 100, 200],
-        data: { url: payload.url || '/' }, // Carry the URL through the notification
+        data: { url: payload.url || '/' }, 
         tag: 'dischat-alert',
         renotify: true
     };

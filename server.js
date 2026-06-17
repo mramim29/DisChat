@@ -405,7 +405,7 @@ socket.on('join_room', async (roomId) => {
             await msg.save();
 
             io.to(p.room).emit('new_msg', msg);
-            sendPushToRoom(p.room, socket.data.username, `New message from ${socket.data.username}`, p.text.trim());
+            sendPushToRoom(p.room, socket.data.username, socket.data.username, p.text.trim());
 
         } catch (err) {
             console.error("[SEND_MSG_ERROR]", err);
