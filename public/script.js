@@ -48,7 +48,7 @@ function escapeHTML(str) {
     }[tag]));
 }
 
-function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomName = null) {
+function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomName = null, sender = null) {
     const bin = document.getElementById('toast-bin');
     if (bin.children.length > 5) bin.removeChild(bin.children[0]);
 
@@ -72,7 +72,10 @@ function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomNa
         document.visibilityState !== 'visible' || 
         (roomId && roomId !== curRoom);
 
-    if (shouldNotify) {
+    // Skip notification if the message is from the current user
+    const isOwnMessage = sender && sender.toLowerCase() === me.toLowerCase();
+
+    if (shouldNotify && !isOwnMessage) {
         playNotificationSound();
         showSystemNotification(title, text, roomId, roomName);
     }
@@ -829,12 +832,13 @@ socket.on('new_msg', m => {
     }
 
     showNotify(
-        `you have a message from ${escapeHTML(m.sender)} in ${escapeHTML(displayName)}`, 
-        m.isVip ? "VIP DIRECTIVE" : "INCOMING MESSAGE", 
-        m.isVip ? "error" : "info", 
-        m.room, 
-        displayName
-    );
+    `you have a message from ${escapeHTML(m.sender)} in ${escapeHTML(displayName)}`, 
+    m.isVip ? "VIP DIRECTIVE" : "INCOMING MESSAGE", 
+    m.isVip ? "error" : "info", 
+    m.room, 
+    displayName,
+    m.sender   
+         );
 });
 
 socket.on('chat_history', logs => {

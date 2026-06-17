@@ -1,6 +1,7 @@
 {
-  "short_name": "DisChat",
   "name": "DisChat Cyber Messenger",
+  "short_name": "DisChat",
+  "version": "6.0.32",
   "description": "Terminal-style cyber communication matrix client.",
   "icons": [
     {

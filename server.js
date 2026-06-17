@@ -23,7 +23,14 @@ function escapeRegex(str) {
 mongoose.connect(process.env.MONGO_URI, { dbName: 'dischat_data' })
     .then(() => console.log(">>> [SYSTEM_CORE]: DATABASE_ONLINE"))
     .catch(err => console.error(">>> [FATAL_ERR]: DB_CONNECTION_FAILED", err));
-
+// Load existing push subscriptions into memory
+PushSubscription.find().then(subs => {
+    deviceSubscriptions = subs.map(doc => ({
+        username: doc.username,
+        subscription: doc.subscription
+    }));
+    console.log(`[PWA_SYSTEM] Loaded ${deviceSubscriptions.length} push devices from DB.`);
+}).catch(err => console.error('Failed to load push subscriptions', err));
 //SCHEMAS
 const User = mongoose.model('User', new mongoose.Schema({
     username: { type: String, unique: true, required: true, trim: true, lowercase: true },
@@ -405,7 +412,7 @@ socket.on('join_room', async (roomId) => {
             await msg.save();
 
             io.to(p.room).emit('new_msg', msg);
-            broadcastSystemNotification(`New message from ${socket.data.username}`, p.text.trim(), socket.data.username);
+            sendPushToRoom(p.room, socket.data.username, `New message from ${socket.data.username}`, p.text.trim());
 
         } catch (err) {
             console.error("[SEND_MSG_ERROR]", err);
@@ -645,54 +652,115 @@ if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) {
     );
 }
 
+//   PUSH NOTIFICATION – ROOM‑AWARE SENDER
+async function sendPushToRoom(roomId, senderUsername, title, body) {
+    // If VAPID keys are missing, skip
+    if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
+
+    let targetUsernames = [];
+
+    // 1. Determine who should receive the push based on the room
+    if (roomId === 'global') {
+        // Notify all approved users except sender
+        const allUsers = await User.find({ isApproved: true }).select('username');
+        targetUsernames = allUsers.map(u => u.username).filter(u => u !== senderUsername);
+    } 
+    else if (roomId.startsWith('DM_')) {
+        // Extract the other participant from the DM room ID
+        const parts = roomId.split('_').slice(1);
+        const other = parts.find(u => u !== senderUsername);
+        if (other) targetUsernames = [other];
+    } 
+    else if (roomId.startsWith('CLUSTER_')) {
+        // Fetch the group members from the database
+        const group = await Group.findOne({ roomId });
+        if (group) {
+            targetUsernames = group.members.filter(u => u !== senderUsername);
+        }
+    } 
+    else {
+        // Unknown room type – send to no one
+        return;
+    }
+
+    // 2. For each target, find their subscription and send the push
+    for (const username of targetUsernames) {
+        const entry = deviceSubscriptions.find(
+            sub => sub.username.toLowerCase() === username.toLowerCase()
+        );
+        if (entry) {
+            try {
+                await webpush.sendNotification(
+                    entry.subscription,
+                    JSON.stringify({ title, body })
+                );
+            } catch (error) {
+                if (error.statusCode === 410) {
+                    // Subscription expired – remove it
+                    const idx = deviceSubscriptions.indexOf(entry);
+                    if (idx > -1) deviceSubscriptions.splice(idx, 1);
+                } else {
+                    console.error(`Push failed for ${username}:`, error);
+                }
+            }
+        }
+    }
+}
 // Memory storage tracking active device tokens (Keep it simple before DB setup)
 let deviceSubscriptions = [];
 
 // API Endpoint to collect subscription map strings from incoming devices
 
 // API Endpoint to collect subscription map strings from incoming devices
-app.post('/api/register-push-device', (req, res) => {
+app.post('/api/register-push-device', async (req, res) => {
     const { subscription, username } = req.body;
     if (!subscription || !subscription.endpoint || !username) {
         return res.status(400).json({ error: 'Invalid device registration layout.' });
     }
-    
-    const targetUser = username.trim().toLowerCase();
-    const existing = deviceSubscriptions.find(sub => sub.subscription.endpoint === subscription.endpoint);
 
-    // If device exists, update the user logged into it. If new, push it.
-    if (existing) {
-        existing.username = targetUser;
+    const targetUser = username.trim().toLowerCase();
+
+    // Upsert – update existing or insert new subscription for this user
+    await PushSubscription.findOneAndUpdate(
+        { username: targetUser },
+        { username: targetUser, subscription: subscription },
+        { upsert: true, new: true }
+    );
+
+    // Also update the in‑memory array for fast lookup
+    const existingIndex = deviceSubscriptions.findIndex(s => s.subscription.endpoint === subscription.endpoint);
+    if (existingIndex > -1) {
+        deviceSubscriptions[existingIndex].username = targetUser;
     } else {
-        deviceSubscriptions.push({ username: targetUser, subscription: subscription });
+        deviceSubscriptions.push({ username: targetUser, subscription });
     }
-    
+
     res.status(201).json({ status: 'success' });
 });
-
+//broadcastSystemNotification function is now deprecated and replaced by sendPushToRoom(),so leave it here.
 // A core function to broadcast alerts to all background devices
-function broadcastSystemNotification(titleText, bodyText, senderUsername = null) {
-    if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
+// function broadcastSystemNotification(titleText, bodyText, senderUsername = null) {
+//     if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
 
-    const payload = JSON.stringify({ title: titleText, body: bodyText });
-    // Normalize to prevent case-sensitivity issues (e.g., 'Ramim' vs 'ramim')
-    const normalizedSender = senderUsername ? senderUsername.trim().toLowerCase() : null;
+//     const payload = JSON.stringify({ title: titleText, body: bodyText });
+//     // Normalize to prevent case-sensitivity issues (e.g., 'Ramim' vs 'ramim')
+//     const normalizedSender = senderUsername ? senderUsername.trim().toLowerCase() : null;
 
-    deviceSubscriptions.forEach((entry, index) => {
-        // --- THE FIX ---
-        // If the device's registered user is the same as the sender, skip this iteration!
-        if (normalizedSender && entry.username && entry.username.toLowerCase() === normalizedSender) {
-            return; 
-        }
+//     deviceSubscriptions.forEach((entry, index) => {
+//         // --- THE FIX ---
+//         // If the device's registered user is the same as the sender, skip this iteration!
+//         if (normalizedSender && entry.username && entry.username.toLowerCase() === normalizedSender) {
+//             return; 
+//         }
 
-        webpush.sendNotification(entry.subscription, payload)
-            .catch(error => {
-                if (error.statusCode === 410) {
-                    deviceSubscriptions.splice(index, 1);
-                }
-            });
-    });
-}
+//         webpush.sendNotification(entry.subscription, payload)
+//             .catch(error => {
+//                 if (error.statusCode === 410) {
+//                     deviceSubscriptions.splice(index, 1);
+//                 }
+//             });
+//     });
+// }
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
