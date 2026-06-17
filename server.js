@@ -631,19 +631,16 @@ socket.on('match_timeout_close', async ({ matchId }) => {
 const webpush = require('web-push');
 
 
-if (process.env.PUBLIC_VAPID_KEY && process.env.PRIVATE_VAPID_KEY) {
-    try {
-        webpush.setVapidDetails(
-            'mailto:your-email@example.com', 
-            process.env.PUBLIC_VAPID_KEY,
-            process.env.PRIVATE_VAPID_KEY
-        );
-        console.log('>>> [PUSH_SYSTEM]: Web-Push configured successfully.');
-    } catch (err) {
-        console.error('>>> [PUSH_ERR]: Failed to set VAPID details:', err.message);
-    }
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        process.env.VAPID_EMAIL,
+        process.env.VAPID_PUBLIC_KEY, 
+        process.env.VAPID_PRIVATE_KEY  
+    );
+    console.log('>>> [PUSH_SYSTEM]: Web-Push configured successfully.');
 } else {
-    console.warn('>>> [PUSH_SYSTEM]: VAPID keys not found in environment. Notifications will be disabled.');
+    console.warn('>>> [PUSH_SYSTEM]: VAPID keys not found. Check your variable names!');
 }
 
 
