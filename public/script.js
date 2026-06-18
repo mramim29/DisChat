@@ -1089,18 +1089,32 @@ socket.on('login_success', (d) => {
 
     applyTheme(currentTheme);
 
-    // ==================== PHASE 1: DEEP-LINK ROUTING ====================
-    if (pendingDeepLinkRoom) {
-        // Join the room that was clicked in the notification
-        joinRoom(pendingDeepLinkRoom, pendingDeepLinkName);
-        // Clear to avoid reuse on accidental reloads
-        pendingDeepLinkRoom = null;
-        pendingDeepLinkName = null;
-    } else {
-        // Default to Global chat
-        curRoom = "";
-        joinRoom('global', 'GLOBAL CHAT');
+    //DEEP-LINK ROUTING 
+if (pendingDeepLinkRoom) {
+   
+    if (pendingDeepLinkRoom.startsWith('DM_')) {
+        // If the name is missing or is the same as the room ID (fallback), fix it
+        if (!pendingDeepLinkName || pendingDeepLinkName === pendingDeepLinkRoom) {
+            const other = getDMOtherUser(pendingDeepLinkRoom);
+            if (other) {
+                pendingDeepLinkName = other;
+                console.log(`[DEEP-LINK] Fixed DM name to: ${pendingDeepLinkName}`);
+            } else {
+                // Fallback: use the room ID
+                pendingDeepLinkName = pendingDeepLinkRoom;
+            }
+        }
     }
+    // Join the room
+    joinRoom(pendingDeepLinkRoom, pendingDeepLinkName);
+    // Clear to avoid reuse
+    pendingDeepLinkRoom = null;
+    pendingDeepLinkName = null;
+} else {
+    // Default to Global chat
+    curRoom = "";
+    joinRoom('global', 'GLOBAL CHAT');
+}
 
     // ==================== PHASE 2: PRESENCE (already handled server‑side) ====================
     // No additional client setup needed; presence updates come via 'user_status' events.
