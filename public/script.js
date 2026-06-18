@@ -729,7 +729,7 @@ function updateMessageStatus(msgId) {
     // Check if read by at least one other person
     const readByOthers = status.read.filter(u => u.toLowerCase() !== me.toLowerCase());
     if (readByOthers.length > 0) {
-        icon = '✓✓✓';
+        icon = '✓✓';
         title = 'Read';
     } 
     // Check if delivered to at least one other person
@@ -746,7 +746,7 @@ function updateMessageStatus(msgId) {
     
     statusEl.textContent = icon;
     statusEl.title = title;
-    statusEl.style.color = icon === '✓✓✓' ? '#00ff41' : '#888';
+    statusEl.style.color = icon === '✓✓' ? '#00ff41' : '#888';
 }
 //UNIFIED SEARCH INTENT ROUTER ENGINE
 socket.on('search_results', ({ users, groups }) => {
@@ -1090,31 +1090,29 @@ socket.on('login_success', (d) => {
     applyTheme(currentTheme);
 
     //DEEP-LINK ROUTING 
-if (pendingDeepLinkRoom) {
-   
-    if (pendingDeepLinkRoom.startsWith('DM_')) {
-        // If the name is missing or is the same as the room ID (fallback), fix it
-        if (!pendingDeepLinkName || pendingDeepLinkName === pendingDeepLinkRoom) {
-            const other = getDMOtherUser(pendingDeepLinkRoom);
-            if (other) {
-                pendingDeepLinkName = other;
-                console.log(`[DEEP-LINK] Fixed DM name to: ${pendingDeepLinkName}`);
-            } else {
-                // Fallback: use the room ID
-                pendingDeepLinkName = pendingDeepLinkRoom;
-            }
+// ==================== DEEP-LINK ROUTING (FIXED) ====================
+    if (pendingDeepLinkRoom) {
+    // If it's a DM, ensure the name is the other user, not our own
+        if (pendingDeepLinkRoom.startsWith('DM_')) {
+        const other = getDMOtherUser(pendingDeepLinkRoom);
+        // Correct if: name missing, equals room ID, or equals our own username
+        if (other && (!pendingDeepLinkName || 
+                      pendingDeepLinkName === pendingDeepLinkRoom || 
+                      pendingDeepLinkName.toLowerCase() === me.toLowerCase())) {
+            pendingDeepLinkName = other;
+            console.log(`[DEEP-LINK] Fixed DM name from '${pendingDeepLinkName || 'undefined'}' to '${other}'`);
         }
+        }
+         // Join the room
+         joinRoom(pendingDeepLinkRoom, pendingDeepLinkName);
+           // Clear to avoid reuse
+        pendingDeepLinkRoom = null;
+        pendingDeepLinkName = null;
+        } else {
+        // Default to Global chat
+        curRoom = "";
+        joinRoom('global', 'GLOBAL CHAT');
     }
-    // Join the room
-    joinRoom(pendingDeepLinkRoom, pendingDeepLinkName);
-    // Clear to avoid reuse
-    pendingDeepLinkRoom = null;
-    pendingDeepLinkName = null;
-} else {
-    // Default to Global chat
-    curRoom = "";
-    joinRoom('global', 'GLOBAL CHAT');
-}
 
     // ==================== PHASE 2: PRESENCE (already handled server‑side) ====================
     // No additional client setup needed; presence updates come via 'user_status' events.
