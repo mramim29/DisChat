@@ -1091,3 +1091,222 @@ body,
 .ttt-cell:disabled { cursor: not-allowed; }
 .ttt-cell.occupied.x { color: #00f2ff !important; text-shadow: 0 0 8px rgba(0, 242, 255, 0.6); }
 .ttt-cell.occupied.o { color: #ff0055 !important; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
+/* ==============================================
+   PHASE 2 + TIMESTAMPS & MOBILE IMPROVEMENTS
+   ============================================== */
+
+/* ---- Presence Dot (Sidebar) ---- */
+.nav-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.presence-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+.presence-dot.online {
+    background: #00ff41;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
+    animation: pulse-dot 2s infinite;
+}
+
+.presence-dot.offline {
+    background: #555;
+    box-shadow: none;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* ---- Day Divider ---- */
+.day-divider {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0 16px 0;
+    position: relative;
+}
+
+.day-divider span {
+    background: var(--panel, #0d1117);
+    padding: 4px 18px;
+    color: #8b949e;
+    font-size: 0.7rem;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(2px);
+}
+
+/* ---- Message Bubble Enhancements (Sender + Timestamp) ---- */
+.msg-bubble {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-width: 78%;
+    margin-bottom: 12px;
+    align-self: flex-start;
+    margin-left: 35px;
+    margin-right: 35px;
+}
+
+.msg-bubble.me {
+    margin-left: auto !important;
+    align-items: flex-end;
+    align-self: flex-end;
+}
+
+.bubble-content {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    background: #111;
+    word-wrap: break-word;
+    line-height: 1.45;
+    max-width: 100%;
+    width: 100%;
+}
+
+/* Sender label */
+.msg-sender {
+    font-size: 0.78rem;
+    font-weight: bold;
+    color: var(--neon);
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Message text */
+.msg-text-payload {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+/* Timestamp */
+.msg-timestamp {
+    font-size: 0.6rem;
+    color: #888;
+    margin-top: 4px;
+    text-align: right;
+    opacity: 0.7;
+    letter-spacing: 0.5px;
+}
+
+/* Adjust bubble styles to match new inner layout */
+.msg-bubble.rect .bubble-content   { border-radius: 6px; }
+.msg-bubble.round .bubble-content  { border-radius: 16px; }
+.msg-bubble.bubble .bubble-content { border-radius: 22px 22px 22px 6px; }
+
+.msg-bubble.me .bubble-content {
+    border-color: var(--neon);
+    background: var(--neon-dim);
+}
+
+.msg-bubble.me.bubble .bubble-content {
+    border-radius: 22px 22px 6px 22px;
+}
+
+/* ---- Mobile Responsiveness Overrides ---- */
+@media (max-width: 768px) {
+    /* Use more width on mobile */
+    .msg-bubble {
+        max-width: 92%;
+        margin-left: 10px !important;
+        margin-right: 10px !important;
+    }
+
+    .msg-bubble.me {
+        margin-left: auto !important;
+        margin-right: 10px !important;
+    }
+
+    .bubble-content {
+        padding: 10px 14px;
+    }
+
+    .msg-sender {
+        font-size: 0.72rem;
+    }
+
+    .msg-text-payload {
+        font-size: 0.9rem;
+    }
+
+    .msg-timestamp {
+        font-size: 0.55rem;
+    }
+
+    /* Ensure day dividers are centered and readable */
+    .day-divider span {
+        font-size: 0.65rem;
+        padding: 3px 14px;
+    }
+
+    /* Slightly larger presence dot for touch */
+    .presence-dot {
+        width: 12px;
+        height: 12px;
+    }
+
+    /* Reaction zone stays mobile-friendly (already in existing CSS) */
+}
+
+/* ---- System Message (already styled, but ensure spacing) ---- */
+.system-broadcast-badge span {
+    font-size: 0.7rem;
+    letter-spacing: 1.2px;
+}
+
+/* ---- Reply bar (already exists, ensure it looks good) ---- */
+#reply-context-anchor-bar {
+    border-color: var(--neon);
+    background: #090d13;
+}
+
+.reply-bar-text-preview-snippet {
+    color: #8b949e;
+}
+
+/* ---- Chat flow scroll padding for better spacing ---- */
+.chat-flow {
+    padding-bottom: 20px;
+}
+
+
+/* ==================== PHASE 3: DELIVERY STATUS ==================== */
+
+.msg-status-icon {
+    font-size: 0.65rem;
+    color: #888;
+    transition: color 0.3s ease;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+/* Read status = green */
+.msg-status-icon[title="Read"] {
+    color: #00ff41 !important;
+}
+
+/* Delivered = light gray */
+.msg-status-icon[title="Delivered"] {
+    color: #aaa;
+}
+
+/* Sent = darker gray */
+.msg-status-icon[title="Sent"] {
+    color: #666;
+}

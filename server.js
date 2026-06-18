@@ -55,18 +55,18 @@ const Message = mongoose.model('Message', new mongoose.Schema({
     text: String,
     isVip: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now },
-    // SUB-ARRAY LAYER TO STORE USER REACTIONS INTO MONGOOSE DOCUMENTS
-    reactions: [{ username: String, emoji: String }],
     
-    // REPLY ATTRIBUTION CONTEXT LAYER
+    //DELIVERY & READ RECEIPTS
+    delivered: [{ type: String, lowercase: true }], 
+    read: [{ type: String, lowercase: true }],      
+    
+    reactions: [{ username: String, emoji: String }],
     replyTo: {
         msgId: String,
         sender: String,
         text: String
     },
-    
-    // TIC TAC TOE ENGAGEMENT TYPE ROUTER TRACKERS
-    type: { type: String, default: "TEXT" }, // Can be "TEXT" or "TICTACTOE"
+    type: { type: String, default: "TEXT" },
     matchId: String
 }));
 
@@ -100,8 +100,8 @@ async function notifyOfflineUser(targetUsername, senderName, messageText) {
         }
     }
 }
-
-
+//ONLINE USERS TRACKER 
+const onlineUsers = new Map();
 //SOCKET EVENTS
 io.on('connection', (socket) => {
     console.log(`[NET] Port opened: ${socket.id}`);
@@ -116,6 +116,21 @@ io.on('connection', (socket) => {
 
             socket.data.username = user.username.toLowerCase();
             socket.data.isVip = user.isVip;
+        // ADD TO ONLINE TRACKER
+        onlineUsers.set(socket.data.username, socket.id);
+        console.log(`[PRESENCE] ${socket.data.username} is now ONLINE (${onlineUsers.size} total)`);
+
+        // Broadcast to all rooms this user is in
+        if (user.groups && user.groups.length > 0) {
+            const roomIds = user.groups.map(g => g.roomId);
+            roomIds.forEach(roomId => {
+                io.to(roomId).emit('user_status', {
+                    username: socket.data.username,
+                    status: 'online',
+                    roomId: roomId
+                });
+            });
+        }
 
             socket.join('global'); 
             if (user.groups && user.groups.length > 0) {
@@ -307,48 +322,58 @@ io.on('connection', (socket) => {
 
     // START DM
     socket.on('start_dm', async ({ target, roomId, roomName }) => {
-        try {
-            if (!socket.data.username || target.toLowerCase() === socket.data.username.toLowerCase()) return;
+    try {
+        if (!socket.data.username || target.toLowerCase() === socket.data.username.toLowerCase()) return;
 
-             
-           
-            const senderRef = { roomId, groupName: target, isDM: true };
-            const receiverRef = { roomId, groupName: socket.data.username, isDM: true };
+        const senderRef = { roomId, groupName: target, isDM: true };
+        const receiverRef = { roomId, groupName: socket.data.username, isDM: true };
 
-            await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: senderRef } });
-            await User.updateOne({ username: target.toLowerCase(), isApproved: true }, { $addToSet: { groups: receiverRef } });
+        await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: senderRef } });
+        await User.updateOne({ username: target.toLowerCase(), isApproved: true }, { $addToSet: { groups: receiverRef } });
 
-            // Subscribe initiator immediately
-            socket.join(roomId);
-            socket.emit('dm_started', { ...senderRef, initiatedByMe: true });
+        socket.join(roomId);
+        socket.emit('dm_started', { ...senderRef, initiatedByMe: true });
 
-            // If the target node is online, forcibly add them to the new channel
-            for (const [_, client] of io.sockets.sockets) {
-                if (client.data.username === target.toLowerCase()) {
-                    client.join(roomId);
-                    // Pass initiatedByMe: false so their client doesn't yank their screen to the new DM
-                    client.emit('dm_started', { ...receiverRef, initiatedByMe: false });
-                }
+        // ==================== PHASE 2: CHECK IF TARGET IS ONLINE ====================
+        const targetLower = target.toLowerCase();
+        const isTargetOnline = onlineUsers.has(targetLower);
+
+        // Notify the initiator about the target's status
+        socket.emit('user_status', {
+            username: targetLower,
+            status: isTargetOnline ? 'online' : 'offline',
+            roomId: roomId
+        });
+
+        // If target is online, join them and send status
+        for (const [_, client] of io.sockets.sockets) {
+            if (client.data.username === targetLower) {
+                client.join(roomId);
+                client.emit('dm_started', { ...receiverRef, initiatedByMe: false });
+                // Notify target about initiator's status
+                client.emit('user_status', {
+                    username: socket.data.username,
+                    status: 'online',
+                    roomId: roomId
+                });
             }
-        } catch (err) {
-            console.error("[START_DM_ERROR]", err);
         }
+
+    } catch (err) {
+        console.error("[START_DM_ERROR]", err);
+    }
     });
 
-    // JOIN ROOM
-socket.on('join_room', async (roomId) => {
+ socket.on('join_room', async (roomId) => {
     try {
         if (!roomId || !socket.data.username) return;
 
         if (roomId.startsWith('CLUSTER_')) {
             const groupData = await Group.findOne({ roomId });
             if (!groupData) return;
-
-            // SECURITY CHECK: Reject unauthorized access to private clusters
             if (!groupData.isPublic && !groupData.members.includes(socket.data.username)) {
                 return socket.emit('notify', { m: "CLUSTER_ENCLAVE_RESTRICTED", type: "error" });
             }
-
             const groupRef = { roomId: groupData.roomId, groupName: groupData.groupName, isDM: false };
             await User.updateOne({ username: socket.data.username }, { $addToSet: { groups: groupRef } });
             await Group.updateOne({ roomId }, { $addToSet: { members: socket.data.username } });
@@ -356,61 +381,146 @@ socket.on('join_room', async (roomId) => {
 
         socket.join(roomId);
 
-        // FETCH FIX: Grab the 150 latest messages descending, then reverse chronological order in memory
+        // Fetch history (unchanged)
         const history = await Message.find({ room: roomId })
             .sort({ timestamp: -1 })
             .limit(150);
-        
         history.reverse();
         socket.emit('chat_history', history);
+
+        //SEND ONLINE USERS IN THIS ROOM
+        let onlineUsersInRoom = [];
+
+        if (roomId.startsWith('DM_')) {
+            // DM: Check if the other user is online
+            const parts = roomId.split('_').slice(1);
+            const otherUser = parts.find(u => u.toLowerCase() !== socket.data.username.toLowerCase());
+            if (otherUser && onlineUsers.has(otherUser)) {
+                onlineUsersInRoom.push(otherUser);
+            }
+        } else if (roomId.startsWith('CLUSTER_')) {
+            // Group: Get all members and filter online
+            const group = await Group.findOne({ roomId });
+            if (group && group.members) {
+                onlineUsersInRoom = group.members.filter(m => onlineUsers.has(m.toLowerCase()));
+            }
+        }
+
+        // Send the list of online users to the client who just joined
+        socket.emit('room_online_users', {
+            roomId: roomId,
+            users: onlineUsersInRoom
+        });
+
     } catch (err) {
         console.error("[JOIN_ROOM_ERROR]", err);
     }
 });
-    // SEND MESSAGE 
-    socket.on('send_msg', async (p) => {
-        try {
-            if (!socket.data.username || !p.room || !p.text?.trim()) return;
 
-            const user = await User.findOne({ username: socket.data.username });
-            const isVip = user?.isVip || false;
-
-            let finalRoomName = p.roomName || p.room;
-
-            if (p.room.startsWith('DM_')) {
-                const parts = p.room.split('_').slice(1);
-                const otherUser = parts.find(u => u.toLowerCase() !== socket.data.username.toLowerCase());
-                if (otherUser) finalRoomName = otherUser;
-            }
-
-            const msgConfig = {
-                room: p.room,
-                roomName: finalRoomName,
-                sender: socket.data.username,
-                text: p.text.trim(),
-                isVip,
-                timestamp: new Date()
-            };
-
-            // Capture nested context pointers if attaching replies
-            if (p.replyTo) {
-                msgConfig.replyTo = {
-                    msgId: p.replyTo.msgId,
-                    sender: p.replyTo.sender,
-                    text: p.replyTo.text
-                };
-            }
-
-            const msg = new Message(msgConfig);
-            await msg.save();
-
-            io.to(p.room).emit('new_msg', msg);
-            sendPushToRoom(p.room, socket.data.username, socket.data.username, p.text.trim());
-
-        } catch (err) {
-            console.error("[SEND_MSG_ERROR]", err);
+socket.on('send_msg', async (p, callback) => {
+    try {
+        if (!socket.data.username || !p.room || !p.text?.trim()) {
+            if (callback) callback({ error: 'Invalid message' });
+            return;
         }
-    });
+
+        const user = await User.findOne({ username: socket.data.username });
+        const isVip = user?.isVip || false;
+
+        let finalRoomName = p.roomName || p.room;
+
+        if (p.room.startsWith('DM_')) {
+            const parts = p.room.split('_').slice(1);
+            const otherUser = parts.find(u => u.toLowerCase() !== socket.data.username.toLowerCase());
+            if (otherUser) finalRoomName = otherUser;
+        }
+
+        const msgConfig = {
+            room: p.room,
+            roomName: finalRoomName,
+            sender: socket.data.username,
+            text: p.text.trim(),
+            isVip,
+            timestamp: new Date(),
+            delivered: [], // Empty initially
+            read: []      // Empty initially
+        };
+
+        if (p.replyTo) {
+            msgConfig.replyTo = {
+                msgId: p.replyTo.msgId,
+                sender: p.replyTo.sender,
+                text: p.replyTo.text
+            };
+        }
+
+        const msg = new Message(msgConfig);
+        await msg.save();
+
+        // Send the message to the room (including the sender)
+        io.to(p.room).emit('new_msg', msg);
+
+        // ==================== PHASE 3: ACKNOWLEDGEMENT ====================
+        // Send a "sent" confirmation back to the sender with the message ID
+        if (callback) {
+            callback({ success: true, msgId: msg._id });
+        }
+
+        // Send push notifications (unchanged)
+        await sendPushToRoom(
+            p.room,
+            finalRoomName,
+            socket.data.username,
+            socket.data.username,
+            p.text.trim()
+        );
+
+        // CRITICAL: Automatically mark the message as DELIVERED to the sender's own devices
+        // so the sender sees "✓" immediately (since they sent it)
+        const senderLower = socket.data.username.toLowerCase();
+        if (!msg.delivered.includes(senderLower)) {
+            msg.delivered.push(senderLower);
+            await msg.save();
+        }
+
+        // Also automatically mark as READ for the sender
+        if (!msg.read.includes(senderLower)) {
+            msg.read.push(senderLower);
+            await msg.save();
+        }
+
+        // Notify the sender about the delivery status
+        io.to(`user:${senderLower}`).emit('delivery_update', {
+            msgId: msg._id,
+            delivered: msg.delivered,
+            read: msg.read
+        });
+
+        // For DMs: Check if the recipient is online and deliver immediately
+        if (p.room.startsWith('DM_')) {
+            const parts = p.room.split('_').slice(1);
+            const otherUser = parts.find(u => u.toLowerCase() !== senderLower);
+            if (otherUser) {
+                // Check if the recipient is online via our onlineUsers Map
+                const isRecipientOnline = onlineUsers.has(otherUser.toLowerCase());
+                
+                if (isRecipientOnline) {
+                    // Recipient is online, they will receive the message via 'new_msg' event
+                    // and then they will emit 'message_delivered' and 'message_read'
+                    // No extra action needed here
+                    console.log(`[DELIVERY] ${otherUser} is online, waiting for delivery receipt`);
+                } else {
+                    // Recipient is offline - message will be delivered when they come online
+                    console.log(`[DELIVERY] ${otherUser} is offline, delivery pending`);
+                }
+            }
+        }
+
+    } catch (err) {
+        console.error("[SEND_MSG_ERROR]", err);
+        if (callback) callback({ error: 'Server error' });
+    }
+});
     
     socket.on('message_reaction', async ({ msgId, emoji }) => {
         try {
@@ -451,6 +561,109 @@ socket.on('join_room', async (roomId) => {
             console.error("[MESSAGE_REACTION_ERROR]", err);
         }
     });
+
+
+    //DELIVERY & READ RECEIPTS
+    //Client acknowledges they received a message (delivered)
+    socket.on('message_delivered', async ({ msgId }) => {
+      try {
+          if (!socket.data.username || !msgId) return;
+
+            const username = socket.data.username.toLowerCase();
+          const msg = await Message.findById(msgId);
+          if (!msg) return;
+
+          // Only add if not already in the delivered list
+         if (!msg.delivered.includes(username)) {
+              msg.delivered.push(username);
+             await msg.save();
+
+                // Notify the sender (if they're online) that this message was delivered
+             io.to(`user:${msg.sender.toLowerCase()}`).emit('delivery_update', {
+                 msgId: msgId,
+                delivered: msg.delivered,
+                read: msg.read
+                 });
+            }
+             } catch (err) {
+             console.error("[DELIVERY_UPDATE_ERROR]", err);
+        }
+    });
+
+//Client acknowledges they read a message (read)
+socket.on('message_read', async ({ msgId }) => {
+    try {
+        if (!socket.data.username || !msgId) return;
+
+        const username = socket.data.username.toLowerCase();
+        const msg = await Message.findById(msgId);
+        if (!msg) return;
+
+        // If not read yet, add to read list AND ensure delivered is also added
+        if (!msg.read.includes(username)) {
+            msg.read.push(username);
+            
+            // Also mark as delivered (if not already)
+            if (!msg.delivered.includes(username)) {
+                msg.delivered.push(username);
+            }
+            
+            await msg.save();
+
+            // Notify the sender (if they're online) that this message was read
+            io.to(`user:${msg.sender.toLowerCase()}`).emit('read_update', {
+                msgId: msgId,
+                delivered: msg.delivered,
+                read: msg.read
+            });
+        }
+    } catch (err) {
+        console.error("[READ_UPDATE_ERROR]", err);
+    }
+});
+
+//Mark all messages in a room as read
+socket.on('room_messages_read', async ({ roomId, messageIds }) => {
+    try {
+        if (!socket.data.username || !roomId || !messageIds || messageIds.length === 0) return;
+
+        const username = socket.data.username.toLowerCase();
+
+        // Update all messages in this room that the user hasn't read yet
+        const result = await Message.updateMany(
+            { 
+                _id: { $in: messageIds },
+                sender: { $ne: socket.data.username }, // Don't mark own messages as read
+                read: { $ne: username } // Only if not already read
+            },
+            { 
+                $addToSet: { read: username, delivered: username }
+            }
+        );
+
+        if (result.modifiedCount > 0) {
+            // Fetch the updated messages to broadcast delivery/read updates to senders
+            const updatedMessages = await Message.find({ 
+                _id: { $in: messageIds },
+                sender: { $ne: socket.data.username }
+            });
+
+            // Notify each sender about their messages being read
+            const senderMap = {};
+            updatedMessages.forEach(msg => {
+                const sender = msg.sender.toLowerCase();
+                if (!senderMap[sender]) senderMap[sender] = [];
+                senderMap[sender].push({ msgId: msg._id, delivered: msg.delivered, read: msg.read });
+            });
+
+            for (const [sender, msgs] of Object.entries(senderMap)) {
+                io.to(`user:${sender}`).emit('batch_read_update', { messages: msgs });
+            }
+        }
+    } catch (err) {
+        console.error("[BATCH_READ_ERROR]", err);
+    }
+});
     // ==================== REAL-TIME INTERACTIVE TIC TAC TOE ENGINE ====================
     socket.on('create_match', async ({ roomId, chosenSign, targetUser }) => {
         try {
@@ -623,8 +836,29 @@ socket.on('match_timeout_close', async ({ matchId }) => {
     }
 
     socket.on('disconnect', () => {
-        console.log(`[NET] Port closed: ${socket.id}`);
-    });
+    console.log(`[NET] Port closed: ${socket.id}`);
+
+    //REMOVE FROM ONLINE TRACKER
+    if (socket.data.username) {
+        const username = socket.data.username.toLowerCase();
+
+        // Remove from tracker
+        onlineUsers.delete(username);
+        console.log(`[PRESENCE] ${username} is now OFFLINE (${onlineUsers.size} total)`);
+
+        // Broadcast offline status to all rooms the user was in
+        const rooms = Array.from(socket.rooms);
+        rooms.forEach(roomId => {
+            if (roomId !== socket.id) { // Skip the socket's own room
+                io.to(roomId).emit('user_status', {
+                    username: username,
+                    status: 'offline',
+                    roomId: roomId
+                });
+            }
+        });
+    }
+});
 });
 
 //   PROGRESSIVE WEB APP PUSH SYSTEM 
@@ -644,43 +878,59 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 }
 
 
-async function sendPushToRoom(roomId, senderUsername, title, body) {
-    if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
+//PUSH NOTIFICATION 
+async function sendPushToRoom(roomId, roomName, senderUsername, title, body) {
+    // Guard: check VAPID keys
+    if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+        console.warn('[PUSH] VAPID keys missing – aborting');
+        return;
+    }
 
     try {
-      
-        const [roomMembers, subscriptions] = await Promise.all([
-            User.find({ 'groups.roomId': roomId }).select('username'),
-            PushSubscription.find({
-                username: { 
-                    $in: await User.find({ 'groups.roomId': roomId }).distinct('username'),
-                    $ne: senderUsername.toLowerCase()
-                }
-            })
-        ]);
+        // Get all members of this room (excluding sender)
+        const members = await User.find({ 'groups.roomId': roomId }).select('username').lean();
+        const memberUsernames = members.map(u => u.username);
+        const recipients = memberUsernames.filter(u => u.toLowerCase() !== senderUsername.toLowerCase());
 
+        if (recipients.length === 0) {
+            console.log('[PUSH] No other members in room – skipping');
+            return;
+        }
+
+        // Fetch subscriptions for recipients
+        const subscriptions = await PushSubscription.find({
+            username: { $in: recipients }
+        }).lean();
+
+        console.log(`[PUSH] Found ${subscriptions.length} subscriptions for room ${roomId}`);
+
+        if (subscriptions.length === 0) return;
+
+        // Build payload with ALL fields for deep-linking and per-user threading
         const payload = JSON.stringify({
-            title: title, // senderUsername
-            body: body,
-            data: { url: `/room/${roomId}` }
+            title: title,                      // Sender's username (or "SYSTEM")
+            body: body,                        // Message content
+            sender: senderUsername,            // Unique tag per sender
+            roomId: roomId,                    // For deep-linking
+            roomName: roomName || roomId       // For display
         });
 
-        // Use Promise.allSettled to ensure one failure doesn't stop the entire batch
-        const results = await Promise.allSettled(
-            subscriptions.map(record => 
-                webpush.sendNotification(record.subscription, payload)
-                    .catch(async (err) => {
-                        if (err.statusCode === 410 || err.statusCode === 404) {
-                            await PushSubscription.deleteOne({ _id: record._id });
-                        }
-                        throw err;
-                    })
-            )
-        );
-        
-        console.log(`[PUSH_SYSTEM]: Delivery complete. Processed ${results.length} subscriptions.`);
+        // Send to each subscription
+        for (const record of subscriptions) {
+            try {
+                await webpush.sendNotification(record.subscription, payload);
+                console.log(`[PUSH] Sent to ${record.username}`);
+            } catch (err) {
+                if (err.statusCode === 410 || err.statusCode === 404) {
+                    console.log(`[PUSH] Subscription expired for ${record.username} – removing`);
+                    await PushSubscription.deleteOne({ _id: record._id });
+                } else {
+                    console.error(`[PUSH] Failed to send to ${record.username}:`, err.message);
+                }
+            }
+        }
     } catch (err) {
-        console.error('[PUSH_ERR]: Failed to broadcast to room:', err);
+        console.error('[PUSH] Error in sendPushToRoom:', err);
     }
 }
 // Memory storage tracking active device tokens (Keep it simple before DB setup)

@@ -4,13 +4,87 @@ let curRoom = "";
 let curRoomName = "";
 let isVipUser = false;
 let currentTheme = localStorage.getItem('dischat-theme') || 'cyan';
-let bubbleStyle = localStorage.getItem('dischat-bubble') || 'rect';
+let bubbleStyle = localStorage.getItem('dischat-bubble') || 'bubble';
 let vipEffect = localStorage.getItem('dischat-vipeffect') || 'neon';
 let roomTimestamps = {};
 let currentReplyTarget = null;
+let pendingDeepLinkRoom = null;
+let pendingDeepLinkName = null;
+let onlineUsersMap = {};
+let roomOnlineUsers = {};
+let lastDisplayedDate = null;
+
+
+//DELIVERY STATUS
+const DELIVERY_STATUS = {
+    SENDING: 'sending',
+    SENT: 'sent',
+    DELIVERED: 'delivered',
+    READ: 'read'
+};
+
+// Map to track message delivery status by msgId
+let msgStatusMap = {};
 //NOTIFICATION & AUDIO SETUP
 const notificationSound = document.getElementById('notification-sound');
 
+
+//AUTO-READ MESSAGES ON SCROLL 
+let readObserver = null;
+
+function setupReadTracking() {
+    const chatFlow = document.getElementById('msg-flow');
+    if (!chatFlow) return;
+
+    // Create an Intersection Observer to detect when messages are visible
+    readObserver = new IntersectionObserver((entries) => {
+        const visibleMsgIds = [];
+        
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const msgEl = entry.target;
+                const msgId = msgEl.id?.replace('msg-', '');
+                if (msgId && msgEl.classList.contains('me') === false) {
+                    // Only mark messages FROM OTHER USERS as read
+                    visibleMsgIds.push(msgId);
+                }
+            }
+        });
+
+        if (visibleMsgIds.length > 0) {
+            // Batch send read receipts
+            socket.emit('room_messages_read', {
+                roomId: curRoom,
+                messageIds: visibleMsgIds
+            });
+        }
+    }, {
+        threshold: 0.5, // Message must be 50% visible
+        root: chatFlow
+    });
+
+    // Observe all existing messages
+    chatFlow.querySelectorAll('.msg-bubble:not(.me)').forEach(el => {
+        readObserver.observe(el);
+    });
+
+    // Also observe new messages via MutationObserver
+    const mutationObserver = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.classList && node.classList.contains('msg-bubble') && 
+                    !node.classList.contains('me')) {
+                    readObserver.observe(node);
+                }
+            });
+        });
+    });
+
+    mutationObserver.observe(chatFlow, {
+        childList: true,
+        subtree: false
+    });
+}
 function playNotificationSound() {
     if (notificationSound) {
         notificationSound.currentTime = 0;
@@ -186,17 +260,18 @@ function renderNode(g) {
         if (other) displayName = other;
     }
 
-    // Removed the [DM] and [C] bracket prefixes for a pristine layout
     div.innerHTML = `
-        <span class="nav-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold;">
-            ${displayName}
-        </span>
-        <div id="preview-${g.roomId}" class="nav-preview">No transmissions yet</div>
+    <span class="nav-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; display: flex; align-items: center;">
+        ${displayName}
+        <span id="dot-placeholder-${g.roomId}" style="margin-left: auto;"></span>
+    </span>
+    <div id="preview-${g.roomId}" class="nav-preview">No transmissions yet</div>
     `;
 
     div.onclick = () => joinRoom(g.roomId, displayName);
     list.appendChild(div);
     
+    updatePresenceIndicators(g.roomId);
     updateSidebarSorting(g.roomId);
 }
 
@@ -206,18 +281,37 @@ function joinRoom(id, name) {
     curRoom = id;
     curRoomName = name || id;
 
-    document.getElementById('active-room').innerText = curRoomName;
+    // Reset day dividers for the new room
     document.getElementById('msg-flow').innerHTML = "";
+    lastDisplayedDate = null;
 
-    // Clear unread snippet highlight states upon reading
+    // ---- Update header with room name + online status ----
+    const headerEl = document.getElementById('active-room');
+
+    if (id.startsWith('DM_')) {
+        const other = getDMOtherUser(id);
+        if (other) {
+            const isOnline = roomOnlineUsers[id]?.includes(other.toLowerCase()) || false;
+            headerEl.innerHTML = `${curRoomName} <span style="color:${isOnline ? '#00ff41' : '#666'}; font-size:0.65rem; margin-left:10px; font-weight:bold;">${isOnline ? '● ONLINE' : '○ OFFLINE'}</span>`;
+        } else {
+            headerEl.innerText = curRoomName;
+        }
+    } else if (id.startsWith('CLUSTER_')) {
+        const onlineList = roomOnlineUsers[id] || [];
+        const onlineCount = onlineList.length;
+        headerEl.innerHTML = `${curRoomName} <span style="color:#00ff41; font-size:0.65rem; margin-left:10px; font-weight:bold;">${onlineCount > 0 ? `● ${onlineCount} ONLINE` : '○ 0 ONLINE'}</span>`;
+    } else {
+        headerEl.innerText = curRoomName;
+    }
+
+    // Clear unread snippet highlight states
     const targetPreview = document.getElementById(`preview-${id}`);
     if (targetPreview) targetPreview.style.color = '#666';
 
-    // UPDATED: RENDER DUEL ACTIONS IN BOTH CLUSTERS AND DIRECT PEERS
+    // ---- Render Duel actions (your existing code) ----
     const actionContainer = document.getElementById('header-actions');
     if (actionContainer) {
         if (id.startsWith('CLUSTER_')) {
-            // Displays both the cluster invite button and new game launcher button side-by-side
             actionContainer.innerHTML = `
                 <button class="gate-btn outline" onclick="promptClusterInvite()" style="margin: 0 8px 0 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; display: inline-block;">
                     [+ ADD PEOPLE]
@@ -228,7 +322,6 @@ function joinRoom(id, name) {
             `;
             actionContainer.style.display = 'block';
         } else if (id.startsWith('DM_')) {
-            // Displays just the game launcher button inside individual direct peer chats
             actionContainer.innerHTML = `
                 <button class="gate-btn outline" onclick="openTTTConfigModal()" style="margin: 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; border-color: #ffcc00; color: #ffcc00;">
                     [⚔️DUEL]
@@ -236,13 +329,14 @@ function joinRoom(id, name) {
             `;
             actionContainer.style.display = 'block';
         } else {
-            // Hides actions entirely if navigating back into the main _GLOBAL room frequency
             actionContainer.style.display = 'none';
         }
     }
 
+    // Join the room via socket
     socket.emit('join_room', id);
     
+    // Auto-close sidebar on mobile
     if (window.innerWidth < 768) {
         toggleSide();
     }
@@ -261,23 +355,67 @@ function closeSidebarOnChatClick() {
     }
 }
 
-// message logic with reply
+
+            // ==================== TIMESTAMP HELPERS ====================
+function formatMessageTime(timestamp) {
+    const date = new Date(timestamp);
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${ampm}`;
+}
+
+function formatDayDivider(timestamp) {
+    const now = new Date();
+    const date = new Date(timestamp);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    if (msgDate.getTime() === today.getTime()) return 'Today';
+    if (msgDate.getTime() === yesterday.getTime()) return 'Yesterday';
+    
+    return date.toLocaleDateString('en-US', { 
+        month: 'long', 
+        day: 'numeric', 
+        year: 'numeric' 
+    });
+}
+
+            //APPEND MESSAGE
 function appendMsg(m) {
     const wrap = document.getElementById('msg-flow');
-    
-    // ==================== FIX: STREAM TIMELINE HYDRATION DECODER INTERCEPT ====================
+
+    // Guard against missing timestamp
+    if (!m.timestamp) m.timestamp = new Date().toISOString();
+
+    const timeStr = formatMessageTime(m.timestamp);
+    const currentDayKey = new Date(m.timestamp).toDateString();
+
+    // ==================== DAY DIVIDER ====================
+    if (currentDayKey !== lastDisplayedDate) {
+        const divider = document.createElement('div');
+        divider.className = 'day-divider';
+        const dayText = formatDayDivider(m.timestamp);
+        divider.innerHTML = `<span>${dayText}</span>`;
+        wrap.appendChild(divider);
+        lastDisplayedDate = currentDayKey;
+    }
+
+    // ==================== TIC TAC TOE GAME NODE ====================
     if (m.type === "TICTACTOE") {
         const gameDiv = document.createElement('div');
         gameDiv.className = "centered-game-matrix-node";
         gameDiv.id = `game-node-${m.matchId}`;
         
-        // Parse the persistent payload variables from backend logs if they exist
         let savedState = null;
         if (m.text && m.text.startsWith('{')) {
             try { savedState = JSON.parse(m.text); } catch(e) { savedState = null; }
         }
 
-        // Generate matrix layout components
         gameDiv.innerHTML = `
             <div class="ttt-scoreboard-frame">
                 <div class="ttt-system-title">TIC TAC TOE</div>
@@ -293,7 +431,6 @@ function appendMsg(m) {
         `;
         wrap.appendChild(gameDiv);
 
-        // If history contains records, run an instant UI hydration pass
         if (savedState) {
             setTimeout(() => {
                 const banner = document.getElementById(`ttt-status-${m.matchId}`);
@@ -323,7 +460,7 @@ function appendMsg(m) {
                 } else if (savedState.status === "WON") {
                     if (cleanMe === pX || cleanMe === pO) {
                         const isWinnerMe = savedState.winner.toLowerCase() === cleanMe;
-                        banner.innerText = isWinnerMe ? `STATUS: YOU WON` : `STATUS: YOU LOST `;
+                        banner.innerText = isWinnerMe ? `STATUS: YOU WON` : `STATUS: YOU LOST`;
                         banner.style.color = isWinnerMe ? "#00ff41" : "var(--danger)";
                     } else {
                         banner.innerText = `MATCH OVER: @${savedState.winner.toUpperCase()} WINS!`;
@@ -339,12 +476,10 @@ function appendMsg(m) {
         }
         
         wrap.scrollTop = wrap.scrollHeight;
-        return; 
+        return;
     }
-    
-    const isMe = m.sender.toLowerCase() === me.toLowerCase();
-    
-    // Check if the message is a system notification notice
+
+    // ==================== SYSTEM MESSAGES ====================
     if (m.sender === "SYSTEM") {
         const sysDiv = document.createElement('div');
         sysDiv.className = "system-broadcast-badge";
@@ -354,6 +489,7 @@ function appendMsg(m) {
         return;
     }
 
+    const isMe = m.sender.toLowerCase() === me.toLowerCase();
     const vipClass = m.isVip ? `vip-message vip-${vipEffect}` : '';
     const div = document.createElement('div');
     div.className = `msg-bubble ${isMe ? 'me' : ''} ${bubbleStyle} ${vipClass}`;
@@ -363,7 +499,7 @@ function appendMsg(m) {
     const safeSender = escapeHTML(m.sender);
     const safeText = escapeHTML(m.text);
 
-    // Build context-aware reference blocks if this packet is linked to a previous message reply
+    // ==================== REPLY QUOTE ====================
     let replyQuoteHTML = '';
     if (m.replyTo) {
         replyQuoteHTML = `
@@ -374,7 +510,7 @@ function appendMsg(m) {
         `;
     }
 
-    // 1. GENERATE THE STRUCTURAL DOM TEMPLATE (Added explicit Desktop Reply control node)
+    // ==================== BUBBLE HTML ====================
     div.innerHTML = `
         <button class="desktop-reply-action-shortcut" onclick="initiateReplySequence('${m._id}', '${safeSender}', '${safeText}')" title="Reply to transmission">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -393,9 +529,21 @@ function appendMsg(m) {
 
         <div class="bubble-content-swipe-container">
             <div class="bubble-content">
+                <!-- SENDER LABEL -->
+                <div class="msg-sender" style="font-weight:bold; color:var(--neon); font-size:0.85rem; margin-bottom:3px;">
+                    ${safeSender}${vipTag}
+                </div>
+
                 ${replyQuoteHTML}
-                <small style="color:var(--neon)">[${safeSender}]${vipTag}</small><br>
-                <span class="msg-text-payload">${safeText}</span>
+
+                <div class="msg-text-payload">${safeText}</div>
+
+                <!-- TIMESTAMP + STATUS ICON -->
+                <div style="display:flex; justify-content:flex-end; align-items:center; gap:4px; margin-top:4px;">
+                    <span class="msg-timestamp" style="font-size:0.65rem; color:#888; letter-spacing:0.5px;">${timeStr}</span>
+                    <span class="msg-status-icon" style="font-size:0.65rem; color:#888;">${isMe ? '✓' : ''}</span>
+                </div>
+
                 <div class="reaction-tray" id="react-tray-${m._id}"></div>
             </div>
             <div class="swipe-reply-indicator-icon">
@@ -405,11 +553,24 @@ function appendMsg(m) {
             </div>
         </div>
     `;
-    
+
     wrap.appendChild(div);
     renderReactionBadges(m._id, m.reactions || []);
 
-    // ==================== INTERACTION: MOBILE SWIPE-TO-REPLY ENGINE ====================
+    // ==================== DELIVERY STATUS TRACKING ====================
+    if (isMe && m._id) {
+        msgStatusMap[m._id] = {
+            delivered: m.delivered || [],
+            read: m.read || []
+        };
+        setTimeout(() => updateMessageStatus(m._id), 100);
+    }
+
+    if (!isMe && m._id && m.sender.toLowerCase() !== me.toLowerCase()) {
+        socket.emit('message_delivered', { msgId: m._id });
+    }
+
+    // ==================== MOBILE SWIPE-TO-REPLY ====================
     let touchTimer = null;
     let isLongPress = false; 
     let startX = 0;
@@ -443,16 +604,13 @@ function appendMsg(m) {
             currentX = e.touches[0].clientX;
             const diffX = currentX - startX;
 
-            // Only recognize horizontal swipes sliding rightward (WhatsApp style movement)
             if (diffX > 10 && !isLongPress) {
                 isSwiping = true;
-                clearTimeout(touchTimer); // Intentionally kill long-press loops if movement starts
+                clearTimeout(touchTimer);
                 
-                // Limit swipe distance
                 const translateAmt = Math.min(diffX, 70); 
                 bubbleContent.style.transform = `translateX(${translateAmt}px)`;
                 
-                // Gradually reveal the reply icon as the swipe distance increases
                 const indicator = swipeContainer.querySelector('.swipe-reply-indicator-icon');
                 if (indicator) {
                     indicator.style.opacity = Math.min(diffX / 50, 1);
@@ -466,13 +624,11 @@ function appendMsg(m) {
             const diffX = currentX - startX;
 
             if (isSwiping) {
-                // If the user swiped far enough past our 55px threshold, execute the reply action
                 if (diffX > 55) {
                     initiateReplySequence(m._id, m.sender, m.text);
                     if (navigator.vibrate) navigator.vibrate([15, 10, 15]);
                 }
                 
-                // Snap the message layout back into place with a smooth transition animation
                 bubbleContent.style.transition = "transform 0.25s ease";
                 bubbleContent.style.transform = "translateX(0px)";
                 
@@ -483,7 +639,6 @@ function appendMsg(m) {
                     indicator.style.transform = "translateY(-50%) scale(0.4)";
                 }
 
-                // Clean up transition rules once the reset animation finishes
                 setTimeout(() => {
                     bubbleContent.style.removeProperty('transition');
                     if (indicator) indicator.style.removeProperty('transition');
@@ -491,7 +646,6 @@ function appendMsg(m) {
             }
         }, { passive: true });
 
-        // Safety listeners to ensure smooth click tracking
         bubbleContent.addEventListener('click', (e) => {
             if (triggerZone.style.display === 'flex' || isLongPress || isSwiping) {
                 e.preventDefault();
@@ -533,8 +687,68 @@ function handleSearch() {
     }
     socket.emit('global_search', query);
 }
+function updateRoomHeader(roomId) {
+    if (roomId !== curRoom) return;
+    const headerEl = document.getElementById('active-room');
+    if (!headerEl) return;
 
-// ====================== UNIFIED SEARCH INTENT ROUTER ENGINE ======================
+    const onlineList = roomOnlineUsers[roomId] || [];
+    const onlineCount = onlineList.length;
+
+    if (roomId.startsWith('DM_')) {
+        const other = getDMOtherUser(roomId);
+        const isOnline = onlineList.includes(other?.toLowerCase());
+        headerEl.innerHTML = `${curRoomName} <span style="color:${isOnline ? '#00ff41' : '#666'}; font-size:0.65rem; margin-left:10px; font-weight:bold;">${isOnline ? '● ONLINE' : '○ OFFLINE'}</span>`;
+    } else if (roomId.startsWith('CLUSTER_')) {
+        headerEl.innerHTML = `${curRoomName} <span style="color:#00ff41; font-size:0.65rem; margin-left:10px; font-weight:bold;">${onlineCount > 0 ? `● ${onlineCount} ONLINE` : '○ 0 ONLINE'}</span>`;
+    }
+}
+
+
+//UPDATE MESSAGE STATUS IN UI
+function updateMessageStatus(msgId) {
+    const msgEl = document.getElementById(`msg-${msgId}`);
+    if (!msgEl) return;
+    
+    const statusEl = msgEl.querySelector('.msg-status-icon');
+    if (!statusEl) return;
+    
+    const status = msgStatusMap[msgId];
+    if (!status) return;
+    
+    const isOwnMessage = msgEl.classList.contains('me');
+    if (!isOwnMessage) {
+        // Only show delivery status on OWN messages
+        return;
+    }
+    
+    // Determine which icon to show
+    let icon = '';
+    let title = '';
+    
+    // Check if read by at least one other person
+    const readByOthers = status.read.filter(u => u.toLowerCase() !== me.toLowerCase());
+    if (readByOthers.length > 0) {
+        icon = '✓✓✓';
+        title = 'Read';
+    } 
+    // Check if delivered to at least one other person
+    else {
+        const deliveredToOthers = status.delivered.filter(u => u.toLowerCase() !== me.toLowerCase());
+        if (deliveredToOthers.length > 0) {
+            icon = '✓✓';
+            title = 'Delivered';
+        } else {
+            icon = '✓';
+            title = 'Sent';
+        }
+    }
+    
+    statusEl.textContent = icon;
+    statusEl.title = title;
+    statusEl.style.color = icon === '✓✓✓' ? '#00ff41' : '#888';
+}
+//UNIFIED SEARCH INTENT ROUTER ENGINE
 socket.on('search_results', ({ users, groups }) => {
     // 1. Check if the Tic Tac Toe duel config dropdown is currently on-screen
     const duelDrop = document.getElementById('ttt-duel-search-drop');
@@ -627,6 +841,102 @@ socket.on('search_results', ({ users, groups }) => {
     }
 });
 
+//DELIVERY & READ EVENTS 
+
+// Receive delivery updates (someone received our message)
+socket.on('delivery_update', ({ msgId, delivered, read }) => {
+    console.log(`[DELIVERY] Message ${msgId} delivered to:`, delivered);
+    
+    if (msgId && msgStatusMap[msgId]) {
+        msgStatusMap[msgId].delivered = delivered;
+        msgStatusMap[msgId].read = read;
+        updateMessageStatus(msgId);
+    }
+});
+
+// Receive read updates (someone read our message)
+socket.on('read_update', ({ msgId, delivered, read }) => {
+    console.log(`[READ] Message ${msgId} read by:`, read);
+    
+    if (msgId && msgStatusMap[msgId]) {
+        msgStatusMap[msgId].delivered = delivered;
+        msgStatusMap[msgId].read = read;
+        updateMessageStatus(msgId);
+    }
+});
+
+//Batch read updates (when someone opens a room)
+socket.on('batch_read_update', ({ messages }) => {
+    messages.forEach(({ msgId, delivered, read }) => {
+        if (msgId && msgStatusMap[msgId]) {
+            msgStatusMap[msgId].delivered = delivered;
+            msgStatusMap[msgId].read = read;
+            updateMessageStatus(msgId);
+        }
+    });
+});
+//RECEIVE ONLINE USERS LIST
+socket.on('room_online_users', ({ roomId, users }) => {
+    roomOnlineUsers[roomId] = users.map(u => u.toLowerCase());
+    console.log(`[PRESENCE] ${roomId} online:`, roomOnlineUsers[roomId]);
+    updatePresenceIndicators(roomId);
+    updateRoomHeader(roomId);
+});
+
+//RECEIVE REAL-TIME STATUS UPDATES
+socket.on('user_status', ({ username, status, roomId }) => {
+    console.log(`[PRESENCE] ${username} ${status} in ${roomId}`);
+    const lower = username.toLowerCase();
+
+    if (!roomOnlineUsers[roomId]) roomOnlineUsers[roomId] = [];
+
+    if (status === 'online') {
+        if (!roomOnlineUsers[roomId].includes(lower)) {
+            roomOnlineUsers[roomId].push(lower);
+        }
+    } else {
+        roomOnlineUsers[roomId] = roomOnlineUsers[roomId].filter(u => u !== lower);
+    }
+
+    updatePresenceIndicators(roomId);
+    updateRoomHeader(roomId);
+});
+
+
+function updatePresenceIndicators(roomId) {
+    const node = document.getElementById(`node-${roomId}`);
+    if (!node) return;
+
+    // Remove existing dot
+    const oldDot = node.querySelector('.presence-dot');
+    if (oldDot) oldDot.remove();
+
+    if (roomId.startsWith('DM_')) {
+        const parts = roomId.split('_').slice(1);
+        const otherUser = parts.find(u => u.toLowerCase() !== me.toLowerCase());
+        if (otherUser) {
+            const isOnline = roomOnlineUsers[roomId]?.includes(otherUser.toLowerCase()) || false;
+            const titleSpan = node.querySelector('.nav-title');
+            if (titleSpan) {
+                const dot = document.createElement('span');
+                dot.className = `presence-dot ${isOnline ? 'online' : 'offline'}`;
+                dot.title = isOnline ? 'Online' : 'Offline';
+                dot.style.cssText = `
+                    display: inline-block;
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 50%;
+                    background: ${isOnline ? '#00ff41' : '#555'};
+                    margin-left: 8px;
+                    flex-shrink: 0;
+                    box-shadow: ${isOnline ? '0 0 8px #00ff41' : 'none'};
+                    transition: all 0.3s ease;
+                `;
+                titleSpan.appendChild(dot);
+            }
+        }
+    }
+}
 function startDM(username) {
     if (username.toLowerCase() === me.toLowerCase()) return showNotify("Self-transmission loop blocked", "SYSTEM", "error");
 
@@ -745,15 +1055,15 @@ function logout() {
     location.reload();
 }
 
-//SOCKET EVENT FLOWS
+//SOCKET EVENT: login_success
 socket.on('login_success', (d) => {
     me = d.username;
     isVipUser = !!d.isVip;
     localStorage.setItem('dischat_username', me);
 
     if (typeof syncDevicePushNotification === 'function') {
-    syncDevicePushNotification();
-        }
+        syncDevicePushNotification();
+    }
     if (document.getElementById('manual-layer')) document.getElementById('manual-layer').style.display = 'none';
     if (document.getElementById('offline-overlay')) document.getElementById('offline-overlay').style.display = 'none';
     document.getElementById('auth-layer').style.display = 'none';
@@ -766,14 +1076,10 @@ socket.on('login_success', (d) => {
     // Render nodes and inject initial baseline preview states
     if (d.groups) {
         d.groups.forEach(g => {
-            // Seed the localized cache dictionary
             if (g.lastTimestamp) {
                 roomTimestamps[g.roomId] = g.lastTimestamp;
             }
-            
             renderNode(g);
-            
-            // Hydrate initial preview element markup snippets
             const previewEl = document.getElementById(`preview-${g.roomId}`);
             if (previewEl && g.lastMsgSnippet) {
                 previewEl.innerText = g.lastMsgSnippet;
@@ -783,16 +1089,34 @@ socket.on('login_success', (d) => {
 
     applyTheme(currentTheme);
 
-    const activeRoomId = curRoom || 'global';
-    const activeRoomName = curRoomName || 'GLOBAL CHAT';
-    curRoom = ""; 
-    joinRoom(activeRoomId, activeRoomName);
+    // ==================== PHASE 1: DEEP-LINK ROUTING ====================
+    if (pendingDeepLinkRoom) {
+        // Join the room that was clicked in the notification
+        joinRoom(pendingDeepLinkRoom, pendingDeepLinkName);
+        // Clear to avoid reuse on accidental reloads
+        pendingDeepLinkRoom = null;
+        pendingDeepLinkName = null;
+    } else {
+        // Default to Global chat
+        curRoom = "";
+        joinRoom('global', 'GLOBAL CHAT');
+    }
 
+    // ==================== PHASE 2: PRESENCE (already handled server‑side) ====================
+    // No additional client setup needed; presence updates come via 'user_status' events.
+
+    // ==================== PHASE 3: SETUP READ TRACKING ====================
+    // Wait for the chat flow to exist, then set up observers for auto‑read
+    setTimeout(() => {
+        setupReadTracking();
+    }, 1000);
+
+    // Request notification permission and register push
     if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
     }
     registerPushDevice();
-});
+}); 
 
 socket.on('cluster_joined', g => { 
     renderNode(g); 
@@ -841,9 +1165,25 @@ socket.on('new_msg', m => {
          );
 });
 
-socket.on('chat_history', logs => {
+socket.on('chat_history', (logs) => {
     document.getElementById('msg-flow').innerHTML = "";
+    lastDisplayedDate = null;
+    
     logs.forEach(appendMsg);
+    
+    // Mark all messages in the history as delivered to the current user
+    const myUsername = me.toLowerCase();
+    const msgIds = logs
+        .filter(msg => msg.sender.toLowerCase() !== myUsername && msg._id)
+        .map(msg => msg._id);
+    
+    if (msgIds.length > 0) {
+        // Send batch delivered
+        socket.emit('room_messages_read', {
+            roomId: curRoom,
+            messageIds: msgIds
+        });
+    }
 });
 
 socket.on('auth_status', d => {
@@ -874,6 +1214,26 @@ socket.on('disconnect', () => {
 function toggleSide() {
     document.getElementById('sidebar').classList.toggle('active');
 }
+
+//DEEP-LINK PARSER
+function handleDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get('join');
+    const roomName = params.get('name');
+
+    if (roomId) {
+        pendingDeepLinkRoom = roomId;
+        pendingDeepLinkName = roomName || roomId;
+
+        // Remove query params from URL to prevent re-trigger on reload
+        window.history.replaceState({}, document.title, window.location.pathname);
+        console.log(`[DEEP-LINK] Pending room: ${pendingDeepLinkRoom} (${pendingDeepLinkName})`);
+    }
+}
+
+// Call it immediately
+handleDeepLink();
+
 
 window.onload = () => {
     // Note: tryAutoLogin is now safely hooked up to the socket 'connect' event handler

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dischat-matrix-v2';
+const CACHE_NAME = 'dischat-matrix-v4';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -40,10 +40,17 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-// 4. Push: Handle incoming notifications
+//PUSH EVENT
 self.addEventListener('push', (event) => {
-    let payload = { title: 'DisChat', body: 'New activity detected.', url: '/' };
-    
+    // Default payload
+    let payload = {
+        title: 'DisChat',
+        body: 'New activity detected.',
+        sender: null,
+        roomId: null,
+        roomName: null
+    };
+
     if (event.data) {
         try {
             payload = event.data.json();
@@ -52,13 +59,19 @@ self.addEventListener('push', (event) => {
         }
     }
 
+    // Build deep-link URL with roomId and roomName
+    const deepLinkUrl = `/?join=${encodeURIComponent(payload.roomId || '')}&name=${encodeURIComponent(payload.roomName || '')}`;
+
+    
+    const tag = payload.sender ? `dischat-msg-${payload.sender}` : 'dischat-alert';
+
     const options = {
         body: payload.body,
         icon: '/icon-192.png',
-        badge: 'notification-badge.png',
+        badge: '/notification-badge.png',
         vibrate: [200, 100, 200],
-        data: { url: payload.url || '/' }, 
-        tag: 'dischat-alert',
+        data: { url: deepLinkUrl },
+        tag: tag,
         renotify: true
     };
 
