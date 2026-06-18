@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dischat-matrix-v5';
+const CACHE_NAME = 'dischat-matrix-v6';
 const STATIC_ASSETS = [
     '/',
     '/index.html',

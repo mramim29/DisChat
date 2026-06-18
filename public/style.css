@@ -1,3 +1,11 @@
+/* ===== FONT IMPORTS ===== */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chelsea+Market&display=swap');   /* NEW */
+@import url('https://fonts.googleapis.com/css2?family=Trispace:wght@400;600;700&display=swap'); /* NEW */
+
 :root {
     /* Accent */
     --neon: #00f2ff;
@@ -16,12 +24,14 @@
     --text-muted: #555;
     --text-inverse: #000;
 
+    --font-family: 'JetBrains Mono', monospace;
     /* Borders */
     --border: #1a212a;
     --border-light: rgba(255, 255, 255, 0.06);
 
     --danger: #ff0055;
     --sidebar-w: 340px;
+
 }
 
 /* ------ BASE ------ */
@@ -29,7 +39,7 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-family);
 }
 
 body {

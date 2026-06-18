@@ -5,7 +5,9 @@ let curRoomName = "";
 let isVipUser = false;
 let currentTheme = localStorage.getItem('dischat-theme') || 'cyan';
 let bubbleStyle = localStorage.getItem('dischat-bubble') || 'bubble';
+let currentFont = localStorage.getItem('dischat-font') || 'jetbrains-mono';
 let vipEffect = localStorage.getItem('dischat-vipeffect') || 'neon';
+
 let roomTimestamps = {};
 let currentReplyTarget = null;
 let pendingDeepLinkRoom = null;
@@ -88,6 +90,27 @@ const THEMES = {
         '--reaction-border': '#2a224d'
     }
 };
+const FONT_MAP = {
+    'jetbrains-mono': "'JetBrains Mono', monospace",
+    'caveat': "'Caveat', cursive",
+    'inter': "'Inter', sans-serif",
+    'space-grotesk': "'Space Grotesk', sans-serif",
+    'chelsea-market': "'Chelsea Market', cursive",  
+    'trispace': "'Trispace', sans-serif"            
+};
+function applyFont(fontKey) {
+    const fontFamily = FONT_MAP[fontKey] || FONT_MAP['jetbrains-mono'];
+    document.documentElement.style.setProperty('--font-family', fontFamily);
+    currentFont = fontKey;
+    localStorage.setItem('dischat-font', fontKey);
+}
+
+function changeFont(fontKey) {
+    applyFont(fontKey);
+    renderUserProfile();
+}
+
+
 //DELIVERY STATUS
 const DELIVERY_STATUS = {
     SENDING: 'sending',
@@ -1044,7 +1067,6 @@ function renderUserProfile() {
         soft: '#f7a1c4',
         ocean: '#4fc3f7',
         midnight: '#7c4dff'
-        
     };
 
     // Build theme buttons with color swatches
@@ -1088,31 +1110,14 @@ function renderUserProfile() {
         `;
     });
 
-    // Build bubble style previews with ACTUAL bubble shapes
+    // Build bubble style previews
     const bubbleStyles = [
         { 
             key: 'rect', 
             label: 'RECT', 
             preview: `
-                <div style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 100%;
-                    gap: 4px;
-                ">
-                    <div style="
-                        background: var(--neon-dim);
-                        border: 1px solid var(--neon);
-                        border-radius: 4px;
-                        padding: 3px 8px;
-                        font-size: 0.5rem;
-                        color: var(--text-primary);
-                        max-width: 50px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    ">Hi</div>
+                <div style="display:flex; align-items:center; justify-content:center; width:100%; gap:4px;">
+                    <div style="background:var(--neon-dim); border:1px solid var(--neon); border-radius:4px; padding:3px 8px; font-size:0.5rem; color:var(--text-primary); max-width:50px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Hi</div>
                 </div>
             `
         },
@@ -1120,25 +1125,8 @@ function renderUserProfile() {
             key: 'round', 
             label: 'ROUND', 
             preview: `
-                <div style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 100%;
-                    gap: 4px;
-                ">
-                    <div style="
-                        background: var(--neon-dim);
-                        border: 1px solid var(--neon);
-                        border-radius: 16px;
-                        padding: 3px 8px;
-                        font-size: 0.5rem;
-                        color: var(--text-primary);
-                        max-width: 50px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    ">Hi</div>
+                <div style="display:flex; align-items:center; justify-content:center; width:100%; gap:4px;">
+                    <div style="background:var(--neon-dim); border:1px solid var(--neon); border-radius:16px; padding:3px 8px; font-size:0.5rem; color:var(--text-primary); max-width:50px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Hi</div>
                 </div>
             `
         },
@@ -1146,26 +1134,8 @@ function renderUserProfile() {
             key: 'bubble', 
             label: 'BUBBLE', 
             preview: `
-                <div style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 100%;
-                    gap: 4px;
-                ">
-                    <div style="
-                        background: var(--neon-dim);
-                        border: 1px solid var(--neon);
-                        border-radius: 18px 18px 18px 4px;
-                        padding: 3px 8px;
-                        font-size: 0.5rem;
-                        color: var(--text-primary);
-                        max-width: 50px;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        position: relative;
-                    ">Hi</div>
+                <div style="display:flex; align-items:center; justify-content:center; width:100%; gap:4px;">
+                    <div style="background:var(--neon-dim); border:1px solid var(--neon); border-radius:18px 18px 18px 4px; padding:3px 8px; font-size:0.5rem; color:var(--text-primary); max-width:50px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; position:relative;">Hi</div>
                 </div>
             `
         }
@@ -1204,7 +1174,7 @@ function renderUserProfile() {
         `;
     });
 
-    // VIP effect previews with subtle visual hints
+    // VIP effect previews
     const vipEffects = [
         { key: 'neon', label: 'NEON', emoji: '✨', glow: '#ff00ff' },
         { key: 'fire', label: 'FIRE', emoji: '🔥', glow: '#ff8800' },
@@ -1245,6 +1215,37 @@ function renderUserProfile() {
         `;
     });
 
+    // ========== FONT BUTTONS ==========
+    const fontKeys = Object.keys(FONT_MAP);
+    let fontButtons = '';
+    fontKeys.forEach(fontKey => {
+        const isActive = currentFont === fontKey;
+        fontButtons += `
+            <button class="profile-font-btn ${isActive ? 'active' : ''}" 
+                    onclick="changeFont('${fontKey}')"
+                    style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0.5rem 0.3rem;
+                        border-radius: 8px;
+                        border: 2px solid ${isActive ? 'var(--neon)' : 'var(--border)'};
+                        background: ${isActive ? 'var(--neon-dim)' : 'transparent'};
+                        color: var(--text-primary);
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        font-size: 0.7rem;
+                        font-weight: ${isActive ? 'bold' : 'normal'};
+                        min-height: 36px;
+                        font-family: ${FONT_MAP[fontKey]};
+                    "
+                    onmouseover="this.style.borderColor='var(--neon)'"
+                    onmouseout="this.style.borderColor='${isActive ? 'var(--neon)' : 'var(--border)'}'">
+                ${fontKey.replace('-', ' ').toUpperCase()}
+            </button>
+        `;
+    });
+
     const html = `
         <div style="text-align:center; margin-bottom:2rem;">
             <div class="avatar-round" style="margin:0 auto; width:90px; height:90px; font-size:2.8rem; border-width:3px; box-shadow: 0 0 30px var(--neon-dim);">
@@ -1266,6 +1267,7 @@ function renderUserProfile() {
             </div>
         </div>
 
+        <!-- THEME -->
         <div style="margin:1.8rem 0 1.5rem;">
             <label style="display:block; font-size:0.6rem; letter-spacing:2px; color:var(--text-secondary); margin-bottom:0.6rem;">THEME</label>
             <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
@@ -1273,6 +1275,15 @@ function renderUserProfile() {
             </div>
         </div>
 
+        <!-- FONT -->
+        <div style="margin:1.5rem 0;">
+            <label style="display:block; font-size:0.6rem; letter-spacing:2px; color:var(--text-secondary); margin-bottom:0.6rem;">FONT</label>
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
+                ${fontButtons}
+            </div>
+        </div>
+
+        <!-- BUBBLE STYLE -->
         <div style="margin:1.5rem 0;">
             <label style="display:block; font-size:0.6rem; letter-spacing:2px; color:var(--text-secondary); margin-bottom:0.6rem;">BUBBLE STYLE</label>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
@@ -1304,7 +1315,6 @@ function renderUserProfile() {
             letter-spacing:1px;
         " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
             LOG OUT
-        
         </button>
     `;
     showModal(html);
@@ -1407,6 +1417,7 @@ socket.on('login_success', (d) => {
     }
 
     applyTheme(currentTheme);
+    applyFont(currentFont);
 
     //DEEP-LINK ROUTING 
 // ==================== DEEP-LINK ROUTING (FIXED) ====================
