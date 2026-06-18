@@ -1,14 +1,30 @@
 :root {
+    /* Accent */
     --neon: #00f2ff;
     --neon-dim: rgba(0, 242, 255, 0.15);
-    --bg: #050608;
-    --panel: #0d1117;
+
+    /* Backgrounds */
+    --bg-primary: #050608;
+    --bg-secondary: #0d1117;
+    --bg-tertiary: #080a0f;
+    --bg-input: #000;
+    --bg-hover: rgba(0, 242, 255, 0.08);
+
+    /* Text */
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --text-muted: #555;
+    --text-inverse: #000;
+
+    /* Borders */
     --border: #1a212a;
+    --border-light: rgba(255, 255, 255, 0.06);
+
     --danger: #ff0055;
     --sidebar-w: 340px;
 }
 
-/*BASE*/
+/* ------ BASE ------ */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -17,8 +33,8 @@
 }
 
 body {
-    background: var(--bg);
-    color: #c9d1d9;
+    background: var(--bg-primary);
+    color: var(--text-primary);
     height: 100dvh;
     overflow: hidden;
     font-size: 18px;
@@ -32,19 +48,19 @@ body {
     inset: 0;
     pointer-events: none;
     z-index: 9999;
-    background: 
+    background:
         linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.18) 50%),
         linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 80, 255, 0.04));
     background-size: 100% 4px, 4px 100%;
     mix-blend-mode: overlay;
 }
 
-/*TOASTS */
+/* ------ TOASTS ------ */
 #toast-bin {
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 100000; 
+    z-index: 100000;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -53,13 +69,13 @@ body {
 }
 
 .notification-toast {
-    background: var(--panel);
+    background: var(--bg-secondary);
     border: 1px solid var(--neon);
     border-left: 4px solid var(--neon);
     padding: 1rem 1.5rem;
     animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-    box-shadow: 0 5px 25px rgba(0,0,0,0.8), inset 0 0 10px var(--neon-dim);
-    color: #c9d1d9;
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.8), inset 0 0 10px var(--neon-dim);
+    color: var(--text-primary);
     word-break: break-word;
     pointer-events: auto;
     font-size: 0.85rem;
@@ -69,15 +85,21 @@ body {
 .notification-toast.error {
     border-color: var(--danger);
     border-left-color: var(--danger);
-    box-shadow: 0 5px 25px rgba(0,0,0,0.8), inset 0 0 10px rgba(255,0,85,0.15);
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 0, 85, 0.15);
 }
 
 @keyframes slideIn {
-    from { transform: translateX(120%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
-/*  MODALS  */
+/* ------ MODALS ------ */
 .modal-bg {
     position: fixed;
     inset: 0;
@@ -94,19 +116,19 @@ body {
     max-height: 90vh;
     overflow-y: auto;
     padding: 2rem 1.8rem;
-    background: var(--panel);
+    background: var(--bg-secondary);
     border: 1px solid var(--neon);
     box-shadow: 0 0 40px var(--neon-dim);
     clip-path: polygon(5% 0, 100% 0, 100% 95%, 95% 100%, 0 100%, 0 5%);
 }
 
-/*  LOGIN GATE  */
+/* ------ LOGIN GATE ------ */
 .gate-wrapper {
     height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle, #0a111a 0%, #000 100%);
+    background: radial-gradient(circle, #0a111a 0%, var(--bg-input) 100%);
 }
 
 .glitch-title {
@@ -121,7 +143,7 @@ body {
 
 .gate-input {
     width: 100%;
-    background: #000;
+    background: var(--bg-input);
     border: 1px solid var(--border);
     color: var(--neon);
     padding: 1rem;
@@ -139,7 +161,7 @@ body {
 .gate-btn {
     width: 100%;
     background: var(--neon);
-    color: #000;
+    color: var(--bg-input);
     border: none;
     padding: 1rem;
     font-weight: bold;
@@ -167,11 +189,11 @@ body {
 
 .gate-btn.outline.active {
     background: var(--neon);
-    color: #000;
+    color: var(--bg-input);
     border-color: var(--neon);
 }
 
-/*MAIN LAYOUT= */
+/* ------ MAIN LAYOUT ------ */
 .terminal-grid {
     display: grid;
     grid-template-columns: var(--sidebar-w) 1fr;
@@ -181,7 +203,7 @@ body {
 }
 
 .sidebar {
-    background: #080a0f;
+    background: var(--bg-tertiary);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -194,12 +216,12 @@ body {
     display: flex;
     flex-direction: column;
     height: 100dvh;
-    background: #000;
+    background: var(--bg-input);
     overflow: hidden;
     position: relative;
 }
 
-/*  SIDEBAR SCROLLING  */
+/* Sidebar Scroll */
 .sidebar-scroll {
     flex: 1;
     overflow-y: auto;
@@ -212,29 +234,54 @@ body {
 .sidebar-scroll::-webkit-scrollbar {
     width: 6px;
 }
-
 .sidebar-scroll::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .sidebar-scroll::-webkit-scrollbar-thumb {
     background: rgba(128, 128, 128, 0.3);
     border-radius: 10px;
 }
-
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--neon-dim);
 }
 
-/* Chat Heade*/
+/* Header */
 .view-header {
-    min-height: 70px;
+    min-height: 50px;
     display: flex;
     align-items: center;
-    padding: 0 1.5rem;
+    padding: 0 1rem;
     border-bottom: 1px solid var(--border);
-    background: var(--panel);
-    gap: 12px;
+    background: var(--bg-secondary);
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+/* Header – Room Name & Status */
+#active-room {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+#active-room > span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+}
+
+.room-status-badge {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: bold;
+    margin-left: 4px;
+    white-space: nowrap;
 }
 
 /* Chat Flow */
@@ -246,12 +293,14 @@ body {
     background-size: 40px 40px;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.4rem; /* compact */
+    padding-bottom: 20px;
 }
 
+/* Input Area */
 .input-bay {
     min-height: 90px;
-    background: var(--panel);
+    background: var(--bg-secondary);
     border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -264,7 +313,7 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     border: 1px solid var(--neon);
-    background: #000;
+    background: var(--bg-input);
     height: 55px;
     overflow: hidden;
 }
@@ -273,14 +322,13 @@ body {
     flex: 1;
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--text-primary);
     padding: 0 1.5rem;
     outline: none;
     font-size: 1.02rem;
 }
-
 .input-box input::placeholder {
-    color: #555;
+    color: var(--text-muted);
 }
 
 /* Sidebar Items */
@@ -293,6 +341,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text-primary);
 }
 
 .nav-item:hover {
@@ -317,7 +366,6 @@ body {
     font-size: 1.35rem;
     transition: all 0.2s;
 }
-
 .avatar-round:hover {
     box-shadow: 0 0 15px var(--neon);
     transform: scale(1.08);
@@ -329,23 +377,23 @@ body {
     width: calc(100% - 2rem);
     top: 100%;
     left: 1rem;
-    background: var(--panel);
+    background: var(--bg-secondary);
     border: 1px solid var(--neon);
     display: none;
     z-index: 2000;
     max-height: 400px;
     overflow-y: auto;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
 }
 
-/*  CHAT BUBBLES  */
+/* Chat Bubbles */
 .msg-bubble {
     max-width: 78%;
     display: flex;
     flex-direction: column;
     align-self: flex-start;
-    margin-bottom: 12px;
-    position: relative; 
+    margin-bottom: 4px; /* compact */
+    position: relative;
     margin-left: 35px;
     margin-right: 35px;
 }
@@ -357,28 +405,62 @@ body {
 }
 
 .bubble-content {
-    padding: 12px 16px;
+    padding: 6px 10px; /* compact */
     border: 1px solid var(--border);
-    background: #111;
+    background: var(--bg-secondary);
     word-wrap: break-word;
-    line-height: 1.45;
+    line-height: 1.4; /* compact */
     max-width: 100%;
+    width: 100%;
 }
 
-.msg-bubble.rect .bubble-content   { border-radius: 6px; }
-.msg-bubble.round .bubble-content  { border-radius: 16px; }
-.msg-bubble.bubble .bubble-content { border-radius: 22px 22px 22px 6px; }
+.msg-bubble.rect .bubble-content {
+    border-radius: 6px;
+}
+.msg-bubble.round .bubble-content {
+    border-radius: 16px;
+}
+.msg-bubble.bubble .bubble-content {
+    border-radius: 22px 22px 22px 6px;
+}
 
 .msg-bubble.me .bubble-content {
     border-color: var(--neon);
     background: var(--neon-dim);
 }
-
 .msg-bubble.me.bubble .bubble-content {
     border-radius: 22px 22px 6px 22px;
 }
 
-/* Hamburger + Close Button */
+/* Sender label */
+.msg-sender {
+    font-size: 0.7rem; /* compact */
+    font-weight: bold;
+    color: var(--neon);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Message text */
+.msg-text-payload {
+    flex: 1 1 auto;
+    word-break: break-word;
+    font-size: 0.95rem;
+    line-height: 1.4;    
+}
+
+/* Timestamp */
+.msg-timestamp {
+    font-size: 0.55rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+/* Hamburger */
 .hamburger {
     cursor: pointer;
     flex-direction: column;
@@ -389,11 +471,9 @@ body {
     display: none;
     transition: 0.2s;
 }
-
 .hamburger:hover {
     background: var(--neon-dim);
 }
-
 .hamburger span {
     display: block;
     width: 25px;
@@ -401,21 +481,19 @@ body {
     background: var(--neon);
 }
 
-/*  SCROLLBARS  */
+/* Scrollbars (global) */
 .chat-flow::-webkit-scrollbar,
 .search-results::-webkit-scrollbar,
 .gate-panel::-webkit-scrollbar,
 .sidebar-scroll::-webkit-scrollbar {
     width: 6px;
 }
-
 .chat-flow::-webkit-scrollbar-track,
 .search-results::-webkit-scrollbar-track,
 .gate-panel::-webkit-scrollbar-track,
 .sidebar-scroll::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .chat-flow::-webkit-scrollbar-thumb,
 .search-results::-webkit-scrollbar-thumb,
 .gate-panel::-webkit-scrollbar-thumb,
@@ -423,21 +501,26 @@ body {
     background: rgba(128, 128, 128, 0.2);
     border-radius: 10px;
 }
-
 .chat-flow::-webkit-scrollbar-thumb:hover,
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--neon-dim);
 }
 
-/*  MOBILE RESPONSIVENESS  */
-/* UPDATE YOUR MEDIA QUERY BLOCK TO LOOK EXACTLY LIKE THIS: */
+/* Mobile Only */
+.mobile-only {
+    display: none;
+}
+
+/* ------ RESPONSIVE (Mobile) ------ */
 @media (max-width: 768px) {
-    body { font-size: 16px; }
-    
-    .terminal-grid { 
-        grid-template-columns: 1fr; 
+    body {
+        font-size: 16px;
     }
-    
+
+    .terminal-grid {
+        grid-template-columns: 1fr;
+    }
+
     .sidebar {
         position: fixed;
         left: -100%;
@@ -445,28 +528,51 @@ body {
         bottom: 0;
         width: 85%;
         max-width: 320px;
-        box-shadow: 25px 0 60px rgba(0,0,0,0.9);
+        box-shadow: 25px 0 60px rgba(0, 0, 0, 0.9);
         z-index: 1000;
     }
-    
-    .sidebar.active { left: 0; }
-    
-    .hamburger { display: flex; }
-    .mobile-only { display: flex !important; }
-    
-    .input-bay { 
-        min-height: 80px; 
-        padding: 0 10px; 
+    .sidebar.active {
+        left: 0;
     }
-    
-    .chat-flow { 
-        padding: 1rem; 
+
+    .hamburger {
+        display: flex;
     }
-    
+    .mobile-only {
+        display: flex !important;
+    }
+
+    .input-bay {
+        min-height: 80px;
+        padding: 0 10px;
+    }
+    .chat-flow {
+        padding: 1rem;
+    }
+
     .msg-bubble {
-        max-width: 90%;
+        max-width: 92%;
+        margin-left: 10px !important;
+        margin-right: 10px !important;
+        margin-bottom: 4px !important;
     }
-    
+    .msg-bubble.me {
+        margin-left: auto !important;
+        margin-right: 10px !important;
+    }
+    .bubble-content {
+        padding: 4px 8px !important;
+    }
+    .msg-sender {
+        font-size: 0.65rem !important;
+    }
+    .msg-text-payload {
+        font-size: 0.85rem !important;
+    }
+    .msg-timestamp {
+        font-size: 0.5rem !important;
+    }
+
     .gate-panel {
         padding: 1.8rem 1.4rem;
         max-height: 85vh;
@@ -477,24 +583,20 @@ body {
         height: 48px !important;
     }
 
-    /* ==================== NEW POLISHED MOBILE HEADER SYSTEM ==================== */
-    .view-header { 
-        min-height: 65px !important; 
-        padding: 0 12px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
+    /* Mobile Header */
+    .view-header {
+        min-height: 48px !important;
+        padding: 0 10px !important;
         gap: 6px !important;
     }
-
-    /* Restricts long channel titles from shoving buttons off screen boundaries */
-    .view-header span[id="active-room"] {
-        max-width: 110px !important;
-        display: inline-block !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        vertical-align: bottom !important;
+    #active-room {
+        font-size: 0.9rem !important;
+    }
+    #active-room > span:first-child {
+        max-width: 140px;
+    }
+    .room-status-badge {
+        font-size: 0.55rem !important;
     }
 
     #header-actions {
@@ -502,8 +604,6 @@ body {
         align-items: center !important;
         gap: 4px !important;
     }
-
-    /* Scales buttons down so they sit flush side-by-side on mobile views */
     #header-actions .gate-btn {
         margin: 0 !important;
         padding: 6px 10px !important;
@@ -513,30 +613,42 @@ body {
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        letter-spacing: 0px !important;
+        letter-spacing: 0 !important;
         white-space: nowrap !important;
     }
 
-    /* MOBILE REACTION OVERRIDES */
+    /* Reaction zone mobile */
     .reaction-trigger-zone {
-        width: 220px !important; 
+        width: 220px !important;
         max-width: 60vw !important;
         overflow-x: auto !important;
         left: 0 !important;
         right: auto !important;
     }
-    
     .msg-bubble.me .reaction-trigger-zone {
         right: 0 !important;
         left: auto !important;
     }
+
+    /* Input box tighter */
+    .input-box {
+        width: 100% !important;
+        height: 48px !important;
+    }
+    .input-bay {
+        padding: 0 8px !important;
+        min-height: 70px !important;
+        width: 100% !important;
+    }
+    .terminal-grid {
+        width: 100% !important;
+        max-width: 100vw !important;
+        overflow: hidden;
+    }
+    
 }
 
-.mobile-only {
-    display: none;
-}
-
-/* VIP EFFECTS */
+/* ------ VIP EFFECTS ------ */
 .vip-message .bubble-content {
     position: relative;
     border-color: #ff00ff !important;
@@ -546,45 +658,51 @@ body {
     animation: vip-neon-light 2s ease-in-out infinite alternate;
     box-shadow: 0 0 15px #ff00ff, 0 0 30px rgba(255, 0, 255, 0.3);
 }
-
 @keyframes vip-neon-light {
-    from { box-shadow: 0 0 8px #ff00ff; }
-    to   { box-shadow: 0 0 20px #ff00ff, 0 0 35px rgba(255, 0, 255, 0.5); }
+    from {
+        box-shadow: 0 0 8px #ff00ff;
+    }
+    to {
+        box-shadow: 0 0 20px #ff00ff, 0 0 35px rgba(255, 0, 255, 0.5);
+    }
 }
 
 .vip-fire .bubble-content {
     animation: vip-fire-light 1.8s ease-in-out infinite alternate;
     box-shadow: 0 0 20px #ff8800, 0 0 35px rgba(255, 136, 0, 0.4);
 }
-
 @keyframes vip-fire-light {
-    from { filter: brightness(1) hue-rotate(-5deg); }
-    to   { filter: brightness(1.2) hue-rotate(8deg); }
+    from {
+        filter: brightness(1) hue-rotate(-5deg);
+    }
+    to {
+        filter: brightness(1.2) hue-rotate(8deg);
+    }
 }
 
 .vip-pulse .bubble-content {
     animation: vip-pulse-light 2.2s ease-in-out infinite;
     box-shadow: 0 0 18px #00ffff, 0 0 40px rgba(0, 255, 255, 0.4);
 }
-
 @keyframes vip-pulse-light {
-    0%, 100% { box-shadow: 0 0 10px #00ffff; }
-    50%      { box-shadow: 0 0 25px #00ffff, 0 0 45px #ff00ff; }
+    0%,
+    100% {
+        box-shadow: 0 0 10px #00ffff;
+    }
+    50% {
+        box-shadow: 0 0 25px #00ffff, 0 0 45px #ff00ff;
+    }
 }
 
-/* Sidebar Lists */
-#cluster-list, #dm-list {
+/* ------ SIDEBAR LISTS ------ */
+#cluster-list,
+#dm-list {
     display: flex;
     flex-direction: column;
 }
 
-
-#cluster-list, #dm-list {
-    display: flex;
-    flex-direction: column;
-}
-
-#cluster-list .nav-item, #dm-list .nav-item {
+#cluster-list .nav-item,
+#dm-list .nav-item {
     padding: 0.8rem 1.5rem;
     display: flex;
     flex-direction: column;
@@ -594,7 +712,7 @@ body {
 
 .nav-preview {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -603,53 +721,39 @@ body {
     margin-top: 2px;
 }
 
-body, 
-.terminal-grid, 
-.viewport, 
-.chat-flow {
-    max-width: 100vw !important;
-    overflow-x: hidden !important; /* Shuts down absolute positioning layout bleeding entirely */
-}
-
-/*  SYSTEM OPERATIONAL METRICS: GLYPHS & REACTIONS  */
-
-body, 
-.terminal-grid, 
-.viewport, 
+/* ------ PREVENT HORIZONTAL OVERFLOW ------ */
+body,
+.terminal-grid,
+.viewport,
 .chat-flow {
     max-width: 100vw !important;
     overflow-x: hidden !important;
 }
 
-/*  SYSTEM OPERATIONAL METRICS: GLYPHS & REACTIONS  */
+/* ------ REACTION ZONE ------ */
 .msg-bubble {
     position: relative;
 }
 
 .reaction-trigger-zone {
     position: absolute;
-    top: -42px; 
+    top: -42px;
     z-index: 9999;
-    
-    background: #0d1117;
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: 24px;
     padding: 6px 14px;
-    gap: 14px; 
-    box-shadow: 0 4px 20px rgba(0,0,0,0.9);
-    
-    display: none; /* Swapped to flex on hover state mappings */
+    gap: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.9);
+    display: none;
     flex-direction: row;
     flex-wrap: nowrap !important;
-    
-    /* DESKTOP DEFAULT LAYOUT (All 5 Emojis + Plus Visible Inline)*/
-    width: auto;             /* Automatically stretches to display everything comfortably */
-    max-width: none;         /* Removes limitations on large screens */
-    overflow-x: visible;     /* Disables internal scrolling vectors on desktop */
+    width: auto;
+    max-width: none;
+    overflow-x: visible;
     overflow-y: hidden;
 }
 
-/* Default Desktop Edge Placement Inversion rules */
 .reaction-trigger-zone {
     left: 0;
     right: auto;
@@ -665,33 +769,26 @@ body,
     }
 }
 
-/*MOBILE LAYOUT RULES OVERRIDE (Screens 768px and smaller)*/
 @media (max-width: 768px) {
     .reaction-trigger-zone {
-        /* Enforce mobile horizontal scroll parameters */
-        width: 220px !important; 
+        width: 220px !important;
         max-width: 60vw !important;
         overflow-x: auto !important;
-        
-        /* Retains clean directional boundaries depending on sender profile orientation */
         left: 0 !important;
         right: auto !important;
     }
-    
     .msg-bubble.me .reaction-trigger-zone {
         right: 0 !important;
         left: auto !important;
     }
 }
 
-/* Strip native scrollbars from the tray on mobile devices */
 .reaction-trigger-zone::-webkit-scrollbar {
     display: none !important;
     width: 0 !important;
     height: 0 !important;
 }
 
-/* Large, Interactive Reaction Emoji Icons */
 .reaction-trigger-zone .react-btn {
     font-size: 1.6rem !important;
     cursor: pointer;
@@ -699,30 +796,29 @@ body,
     user-select: none;
     flex-shrink: 0 !important;
 }
-
 .reaction-trigger-zone .react-btn:hover {
     transform: scale(1.25);
 }
 
-/* Style customization specifically targetting the terminal system addition node symbol */
 .add-more-reactions-trigger:hover {
     color: #fff !important;
     text-shadow: 0 0 8px var(--neon);
 }
 
-/*  CORE TRAYS & TABS  */
+/* Reaction Tray */
 .reaction-tray {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap; 
+    flex-wrap: wrap;
     width: 100%;
     max-width: 100%;
     margin-top: 6px;
 }
 
 .reaction-badge {
-    background: #161b22;
-    border: 1px solid var(--border);
+    background: var(--reaction-bg, #161b22);
+    color: var(--reaction-text, #c9d1d9);
+    border: 1px solid var(--reaction-border, var(--border));
     padding: 3px 8px;
     border-radius: 12px;
     font-size: 0.75rem;
@@ -732,8 +828,8 @@ body,
     gap: 4px;
     user-select: none;
     flex-shrink: 0;
+    transition: all 0.2s ease;
 }
-
 .reaction-badge.active {
     border-color: var(--neon);
     background: var(--neon-dim);
@@ -741,12 +837,12 @@ body,
     box-shadow: 0 0 8px var(--neon-dim);
 }
 
-/*  SYSTEM TERMINAL GLYPH INDEX ENVIRONMENT  */
+/* Emoji Picker */
 .glyph-matrix-viewport {
     max-height: 50vh;
-    overflow-y: auto; 
+    overflow-y: auto;
     overflow-x: hidden;
-    background: #000;
+    background: var(--bg-input);
     border: 1px solid var(--border);
     padding: 12px;
 }
@@ -754,7 +850,6 @@ body,
 .glyph-category-segment {
     margin-bottom: 1.5rem;
 }
-
 .emoji-category-title {
     color: var(--neon);
     font-size: 0.75rem;
@@ -765,13 +860,11 @@ body,
     border-bottom: 1px solid var(--border);
     padding-bottom: 4px;
 }
-
 .emoji-category-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 12px;
 }
-
 .emoji-category-grid .react-btn {
     font-size: 1.7rem;
     text-align: center;
@@ -779,49 +872,23 @@ body,
     user-select: none;
     padding: 4px;
 }
-/*  SVG SEND BUTTON*/
 
+/* SVG Send Button */
 .gate-btn.style-send-svg-btn {
-    width: 65px;          
-    height: 100%;          
-    margin: 0 !important;      
+    width: 65px;
+    height: 100%;
+    margin: 0 !important;
     display: flex;
     align-items: center;
     justify-content: center;
-    clip-path: none;           
+    clip-path: none;
     border-left: 1px solid var(--border);
-    flex-shrink: 0;            
+    flex-shrink: 0;
     background: var(--neon);
-    color: #000;
+    color: var(--bg-input);
 }
 
-/* Hard Mobile Responsiveness Layout Overrides */
-@media (max-width: 768px) {
-    /* Prevents main app framework grid from bleeding outside viewport widths */
-    .terminal-grid {
-        width: 100% !important;
-        max-width: 100vw !important;
-        overflow: hidden;
-    }
-    
-    /* Makes the bottom bay adapt completely to tight mobile limits */
-    .input-bay {
-        padding: 0 8px !important;
-        min-height: 70px !important;
-        width: 100% !important;
-    }
-    
-    
-    
-    .input-box {
-        width: 100% !important;
-        height: 48px !important; /* Slightly more compact layout height for mobile viewports */
-    }
-}
-
-/*SYSTEM BROADCASTS & REPLY MATRIX*/
-
-/* System Broadcast Badge Alerts */
+/* System Broadcasts & Replies */
 .system-broadcast-badge {
     display: flex;
     justify-content: center;
@@ -830,21 +897,20 @@ body,
     margin: 14px 0;
     text-align: center;
 }
-
 .system-broadcast-badge span {
     background: rgba(26, 33, 42, 0.6);
     border: 1px dashed var(--border);
-    color: #8b949e;
+    color: var(--text-secondary);
     font-size: 0.72rem;
     padding: 6px 16px;
     border-radius: 4px;
     letter-spacing: 1.5px;
     font-family: 'JetBrains Mono', monospace;
     text-transform: uppercase;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-/* Container mapping allowing touch layers to pull sliding elements laterally */
+/* Swipe reply container */
 .bubble-content-swipe-container {
     position: relative;
     width: 100%;
@@ -853,13 +919,12 @@ body,
 }
 
 .bubble-content {
-    transition: transform 0.1s ease-out; /* Keeps live finger dragging tracking smooth */
+    transition: transform 0.1s ease-out;
     position: relative;
     z-index: 2;
     width: 100%;
 }
 
-/* Hidden Swiping Reply Asset Elements */
 .swipe-reply-indicator-icon {
     position: absolute;
     left: -40px;
@@ -873,51 +938,42 @@ body,
     pointer-events: none;
 }
 
-/* Desktop Hover Reply Shortcuts Configuration Layouts */
 .desktop-reply-action-shortcut {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: #0d1117;
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     color: var(--neon);
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    display: none; /* Swapped to flex via cursor position conditions */
+    display: none;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 10;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
     transition: color 0.2s, background 0.2s, transform 0.1s;
 }
-
 .desktop-reply-action-shortcut:hover {
     background: var(--neon);
-    color: #000;
+    color: var(--bg-input);
     transform: translateY(-50%) scale(1.1);
 }
-
-/* Set spatial offset metrics depending on side-by-side sender orientation maps */
 .msg-bubble:not(.me) .desktop-reply-action-shortcut {
     right: -32px;
 }
-
 .msg-bubble.me .desktop-reply-action-shortcut {
     left: -32px;
 }
-
-/* Reveal the shortcuts only on desktop systems when hovering over a message bubble */
 @media (hover: hover) and (pointer: fine) {
     .msg-bubble:hover .desktop-reply-action-shortcut {
         display: flex;
     }
 }
 
-/* CORE INTERACTION PREVIEW BARS*/
-
-/* Input System Reply Context Anchor Panel Tray */
+/* Reply Context Bar */
 #reply-context-anchor-bar {
     width: 100%;
     max-width: 1400px;
@@ -926,17 +982,22 @@ body,
     border: 1px solid var(--neon);
     border-bottom: none;
     padding: 10px 18px;
-    display: none; /* Managed dynamically via JavaScript sequence toggles */
+    display: none;
     align-items: center;
     justify-content: space-between;
     position: relative;
-    box-shadow: 0 -4px 15px rgba(0,0,0,0.6);
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.6);
     animation: slideReplyBarUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
 @keyframes slideReplyBarUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .reply-bar-accent-line {
@@ -947,7 +1008,6 @@ body,
     width: 4px;
     background: var(--neon);
 }
-
 .reply-bar-payload-content {
     display: flex;
     flex-direction: column;
@@ -955,16 +1015,14 @@ body,
     padding-right: 20px;
     flex: 1;
 }
-
 .reply-bar-text-preview-snippet {
     font-size: 0.8rem;
-    color: #8b949e;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-top: 2px;
 }
-
 .close-reply-context-sequence-btn {
     background: none;
     border: none;
@@ -974,12 +1032,11 @@ body,
     transition: color 0.2s;
     padding: 0 5px;
 }
-
 .close-reply-context-sequence-btn:hover {
     color: var(--danger);
 }
 
-/*  NESTED IN-BUBBLE PREVIEW QUOTES */
+/* Nested Reply Quotes */
 .nested-reply-quote {
     background: rgba(0, 0, 0, 0.25);
     border-left: 3px solid var(--neon);
@@ -991,17 +1048,15 @@ body,
     max-width: 100%;
     display: flex;
     flex-direction: column;
-    border-top: 1px solid rgba(255,255,255,0.02);
-    border-right: 1px solid rgba(255,255,255,0.02);
-    border-bottom: 1px solid rgba(255,255,255,0.02);
+    border-top: 1px solid rgba(255, 255, 255, 0.02);
+    border-right: 1px solid rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
 }
-
 .nested-reply-quote:hover {
     background: rgba(255, 255, 255, 0.02);
 }
-
 .reply-quote-text-snippet {
-    color: #8b949e;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1009,16 +1064,20 @@ body,
     margin-top: 1px;
 }
 
-/* Highlighting animation triggered when jumping back to a parent message */
 @keyframes reply-target-flash-highlight {
-    0%, 100% { box-shadow: none; background: transparent; }
-    30%, 60% { 
-        box-shadow: 0 0 15px var(--neon), inset 0 0 10px var(--neon-dim); 
+    0%,
+    100% {
+        box-shadow: none;
+        background: transparent;
+    }
+    30%,
+    60% {
+        box-shadow: 0 0 15px var(--neon), inset 0 0 10px var(--neon-dim);
         background: var(--neon-dim);
     }
 }
 
-/* ==================== CYBERPUNK TIC TAC TOE PANEL ==================== */
+/* Tic Tac Toe */
 .centered-game-matrix-node {
     display: flex;
     justify-content: center;
@@ -1026,7 +1085,6 @@ body,
     width: 100%;
     margin: 20px 0;
 }
-
 .ttt-scoreboard-frame {
     background: #080c10;
     border: 2px solid #ffcc00;
@@ -1037,7 +1095,6 @@ body,
     text-align: center;
     clip-path: polygon(6% 0, 100% 0, 100% 94%, 94% 100%, 0 100%, 0 6%);
 }
-
 .ttt-system-title {
     color: #ffcc00;
     font-size: 0.68rem;
@@ -1048,7 +1105,6 @@ body,
     border-bottom: 1px dashed rgba(255, 204, 0, 0.2);
     padding-bottom: 4px;
 }
-
 .ttt-status-banner {
     font-size: 0.8rem;
     font-weight: bold;
@@ -1056,16 +1112,14 @@ body,
     margin-bottom: 18px;
     text-transform: uppercase;
 }
-
 .ttt-core-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     padding: 8px;
     border: 1px solid var(--border);
 }
-
 .ttt-cell {
     aspect-ratio: 1 / 1;
     background: #11161d;
@@ -1081,21 +1135,24 @@ body,
     align-items: center;
     justify-content: center;
 }
-
 .ttt-cell:hover:not(:disabled) {
     background: #1c2330;
     border-color: #ffcc00;
     box-shadow: inset 0 0 8px rgba(255, 204, 0, 0.2);
 }
+.ttt-cell:disabled {
+    cursor: not-allowed;
+}
+.ttt-cell.occupied.x {
+    color: #00f2ff !important;
+    text-shadow: 0 0 8px rgba(0, 242, 255, 0.6);
+}
+.ttt-cell.occupied.o {
+    color: #ff0055 !important;
+    text-shadow: 0 0 8px rgba(255, 0, 85, 0.6);
+}
 
-.ttt-cell:disabled { cursor: not-allowed; }
-.ttt-cell.occupied.x { color: #00f2ff !important; text-shadow: 0 0 8px rgba(0, 242, 255, 0.6); }
-.ttt-cell.occupied.o { color: #ff0055 !important; text-shadow: 0 0 8px rgba(255, 0, 85, 0.6); }
-/* ==============================================
-   PHASE 2 + TIMESTAMPS & MOBILE IMPROVEMENTS
-   ============================================== */
-
-/* ---- Presence Dot (Sidebar) ---- */
+/* ===== PHASE 2 + TIMESTAMPS & MOBILE IMPROVEMENTS ===== */
 .nav-title {
     display: flex;
     align-items: center;
@@ -1110,24 +1167,29 @@ body,
     flex-shrink: 0;
     transition: all 0.3s ease;
 }
-
 .presence-dot.online {
     background: #00ff41;
     box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
     animation: pulse-dot 2s infinite;
 }
-
 .presence-dot.offline {
-    background: #555;
+    background: var(--text-muted);
     box-shadow: none;
 }
 
 @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+    }
 }
 
-/* ---- Day Divider ---- */
+/* Day Divider */
 .day-divider {
     display: flex;
     justify-content: center;
@@ -1135,178 +1197,58 @@ body,
     margin: 20px 0 16px 0;
     position: relative;
 }
-
 .day-divider span {
-    background: var(--panel, #0d1117);
+    background: var(--bg-secondary);
     padding: 4px 18px;
-    color: #8b949e;
+    color: var(--text-secondary);
     font-size: 0.7rem;
     font-weight: bold;
     letter-spacing: 1.5px;
     text-transform: uppercase;
     border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.06);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(2px);
 }
 
-/* ---- Message Bubble Enhancements (Sender + Timestamp) ---- */
-.msg-bubble {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    max-width: 78%;
-    margin-bottom: 12px;
-    align-self: flex-start;
-    margin-left: 35px;
-    margin-right: 35px;
-}
-
-.msg-bubble.me {
-    margin-left: auto !important;
-    align-items: flex-end;
-    align-self: flex-end;
-}
-
-.bubble-content {
-    padding: 12px 16px;
-    border: 1px solid var(--border);
-    background: #111;
-    word-wrap: break-word;
-    line-height: 1.45;
-    max-width: 100%;
-    width: 100%;
-}
-
-/* Sender label */
-.msg-sender {
-    font-size: 0.78rem;
-    font-weight: bold;
-    color: var(--neon);
-    margin-bottom: 3px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* Message text */
-.msg-text-payload {
-    font-size: 0.95rem;
-    line-height: 1.5;
-    word-break: break-word;
-}
-
-/* Timestamp */
-.msg-timestamp {
-    font-size: 0.6rem;
-    color: #888;
-    margin-top: 4px;
-    text-align: right;
-    opacity: 0.7;
-    letter-spacing: 0.5px;
-}
-
-/* Adjust bubble styles to match new inner layout */
-.msg-bubble.rect .bubble-content   { border-radius: 6px; }
-.msg-bubble.round .bubble-content  { border-radius: 16px; }
-.msg-bubble.bubble .bubble-content { border-radius: 22px 22px 22px 6px; }
-
-.msg-bubble.me .bubble-content {
-    border-color: var(--neon);
-    background: var(--neon-dim);
-}
-
-.msg-bubble.me.bubble .bubble-content {
-    border-radius: 22px 22px 6px 22px;
-}
-
-/* ---- Mobile Responsiveness Overrides ---- */
-@media (max-width: 768px) {
-    /* Use more width on mobile */
-    .msg-bubble {
-        max-width: 92%;
-        margin-left: 10px !important;
-        margin-right: 10px !important;
-    }
-
-    .msg-bubble.me {
-        margin-left: auto !important;
-        margin-right: 10px !important;
-    }
-
-    .bubble-content {
-        padding: 10px 14px;
-    }
-
-    .msg-sender {
-        font-size: 0.72rem;
-    }
-
-    .msg-text-payload {
-        font-size: 0.9rem;
-    }
-
-    .msg-timestamp {
-        font-size: 0.55rem;
-    }
-
-    /* Ensure day dividers are centered and readable */
-    .day-divider span {
-        font-size: 0.65rem;
-        padding: 3px 14px;
-    }
-
-    /* Slightly larger presence dot for touch */
-    .presence-dot {
-        width: 12px;
-        height: 12px;
-    }
-
-    /* Reaction zone stays mobile-friendly (already in existing CSS) */
-}
-
-/* ---- System Message (already styled, but ensure spacing) ---- */
-.system-broadcast-badge span {
-    font-size: 0.7rem;
-    letter-spacing: 1.2px;
-}
-
-/* ---- Reply bar (already exists, ensure it looks good) ---- */
-#reply-context-anchor-bar {
-    border-color: var(--neon);
-    background: #090d13;
-}
-
-.reply-bar-text-preview-snippet {
-    color: #8b949e;
-}
-
-/* ---- Chat flow scroll padding for better spacing ---- */
-.chat-flow {
-    padding-bottom: 20px;
-}
-
-
-/* ==================== PHASE 3: DELIVERY STATUS ==================== */
-
+/* Delivery Status */
 .msg-status-icon {
-    font-size: 0.65rem;
+    font-size: 0.55rem;
     color: #888;
-    transition: color 0.3s ease;
-    font-weight: bold;
-    letter-spacing: 0.5px;
+    
 }
-
-/* Read status = green */
 .msg-status-icon[title="Read"] {
     color: #00ff41 !important;
 }
-
-/* Delivered = light gray */
 .msg-status-icon[title="Delivered"] {
     color: #aaa;
 }
-
-/* Sent = darker gray */
 .msg-status-icon[title="Sent"] {
     color: #666;
+}
+
+
+
+.header-btn {
+    border-color: var(--neon) !important;
+    color: var(--neon) !important;
+}
+
+.profile-theme-btn {
+    min-width: 60px;
+    justify-content: center;
+}
+.profile-theme-btn.active {
+    border-color: var(--neon) !important;
+    background: var(--neon-dim) !important;
+    box-shadow: 0 0 20px var(--neon-dim);
+}
+.profile-geo-btn,
+.profile-effect-btn {
+    flex: 1;
+    min-width: 60px;
+}
+.profile-geo-btn.active,
+.profile-effect-btn.active {
+    border-color: var(--neon) !important;
+    background: var(--neon-dim) !important;
 }

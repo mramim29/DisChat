@@ -14,7 +14,80 @@ let onlineUsersMap = {};
 let roomOnlineUsers = {};
 let lastDisplayedDate = null;
 
-
+const THEMES = {
+    cyan: {
+        '--neon': '#00f2ff',
+        '--neon-dim': 'rgba(0, 242, 255, 0.15)',
+        '--bg-primary': '#050608',
+        '--bg-secondary': '#0d1117',
+        '--bg-tertiary': '#080a0f',
+        '--bg-input': '#000',
+        '--bg-hover': 'rgba(0, 242, 255, 0.08)',
+        '--text-primary': '#c9d1d9',
+        '--text-secondary': '#8b949e',
+        '--text-muted': '#555',
+        '--text-inverse': '#000',
+        '--border': '#1a212a',
+        '--border-light': 'rgba(255,255,255,0.06)',
+        '--reaction-bg': '#161b22',
+        '--reaction-text': '#c9d1d9',
+        '--reaction-border': '#1a212a'
+    },
+    soft: {
+        '--neon': '#f7a1c4',
+        '--neon-dim': 'rgba(247, 161, 196, 0.2)',
+        '--bg-primary': '#fdf6f0',
+        '--bg-secondary': '#fffaf5',
+        '--bg-tertiary': '#f5ede7',
+        '--bg-input': '#ffffff',
+        '--bg-hover': 'rgba(247, 161, 196, 0.1)',
+        '--text-primary': '#3d2c2a',
+        '--text-secondary': '#7a5a55',
+        '--text-muted': '#b09893',
+        '--text-inverse': '#ffffff',
+        '--border': '#e6d3cd',
+        '--border-light': 'rgba(247, 161, 196, 0.15)',
+        '--reaction-bg': '#f0e0db',
+        '--reaction-text': '#3d2c2a',
+        '--reaction-border': '#d4bdb6'
+    },
+    ocean: {
+        '--neon': '#4fc3f7',
+        '--neon-dim': 'rgba(79, 195, 247, 0.2)',
+        '--bg-primary': '#0a1a2b',
+        '--bg-secondary': '#112b3f',
+        '--bg-tertiary': '#0d2233',
+        '--bg-input': '#05131f',
+        '--bg-hover': 'rgba(79, 195, 247, 0.08)',
+        '--text-primary': '#d4e6f5',
+        '--text-secondary': '#8db3cc',
+        '--text-muted': '#4d6b80',
+        '--text-inverse': '#0a1a2b',
+        '--border': '#1d3d55',
+        '--border-light': 'rgba(79, 195, 247, 0.06)',
+        '--reaction-bg': '#1a3345',
+        '--reaction-text': '#d4e6f5',
+        '--reaction-border': '#2a4d66'
+    },
+    midnight: {
+        '--neon': '#7c4dff',
+        '--neon-dim': 'rgba(124, 77, 255, 0.2)',
+        '--bg-primary': '#07050f',
+        '--bg-secondary': '#100d1f',
+        '--bg-tertiary': '#0c0817',
+        '--bg-input': '#03020a',
+        '--bg-hover': 'rgba(124, 77, 255, 0.08)',
+        '--text-primary': '#d4ccf5',
+        '--text-secondary': '#8a7acc',
+        '--text-muted': '#4d3d80',
+        '--text-inverse': '#07050f',
+        '--border': '#1d1a4d',
+        '--border-light': 'rgba(124, 77, 255, 0.06)',
+        '--reaction-bg': '#1a1433',
+        '--reaction-text': '#d4ccf5',
+        '--reaction-border': '#2a224d'
+    }
+};
 //DELIVERY STATUS
 const DELIVERY_STATUS = {
     SENDING: 'sending',
@@ -164,7 +237,7 @@ function enterAuthentication() {
 function showUserManualModal() {
     const html = `
         <h2 style="color:var(--neon); text-align:center; margin-bottom:1.5rem;">USER_MANUAL</h2>
-        <div style="font-size:0.9rem; line-height:1.6; text-align:left; max-height:55vh; overflow-y:auto; padding-right:8px; color:#c9d1d9;">
+        <div style="font-size:0.9rem; line-height:1.6; text-align:left; max-height:55vh; overflow-y:auto; padding-right:8px; color:var(--text-primary);">
             <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">1. IDENTITY REGISTRATION:</strong> New nodes can use 'REGISTER_NEW_ID'. All requests are securely processed and require Admin confirmation before they can log in.</p>
             <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">2. GLOBAL FREQUENCY:</strong> The <code style="color:var(--neon)">_GLOBAL</code> room is a master broadcast pipeline linked across all user terminals simultaneously.</p>
             <p style="margin-bottom:1rem;"><strong style="color:var(--neon);">3. CLUSTER ENCLAVES:</strong> Use the <span style="color:var(--neon); font-weight:bold;">[+]</span> toggle near _CLUSTERS to establish custom channels. Public channels are indexable via search, and Private channels are locked via password hash keying.</p>
@@ -286,52 +359,69 @@ function joinRoom(id, name) {
     lastDisplayedDate = null;
 
     // ---- Update header with room name + online status ----
-    const headerEl = document.getElementById('active-room');
+    // ---- Update header with room name + online status ----
+const headerEl = document.getElementById('active-room');
 
-    if (id.startsWith('DM_')) {
-        const other = getDMOtherUser(id);
-        if (other) {
-            const isOnline = roomOnlineUsers[id]?.includes(other.toLowerCase()) || false;
-            headerEl.innerHTML = `${curRoomName} <span style="color:${isOnline ? '#00ff41' : '#666'}; font-size:0.65rem; margin-left:10px; font-weight:bold;">${isOnline ? '● ONLINE' : '○ OFFLINE'}</span>`;
-        } else {
-            headerEl.innerText = curRoomName;
-        }
-    } else if (id.startsWith('CLUSTER_')) {
-        const onlineList = roomOnlineUsers[id] || [];
-        const onlineCount = onlineList.length;
-        headerEl.innerHTML = `${curRoomName} <span style="color:#00ff41; font-size:0.65rem; margin-left:10px; font-weight:bold;">${onlineCount > 0 ? `● ${onlineCount} ONLINE` : '○ 0 ONLINE'}</span>`;
-    } else {
-        headerEl.innerText = curRoomName;
+// Clear and create room name span
+headerEl.innerHTML = '';
+const roomNameSpan = document.createElement('span');
+roomNameSpan.textContent = curRoomName;
+roomNameSpan.style.flexShrink = '1';
+roomNameSpan.style.overflow = 'hidden';
+roomNameSpan.style.textOverflow = 'ellipsis';
+roomNameSpan.style.whiteSpace = 'nowrap';
+headerEl.appendChild(roomNameSpan);
+
+let statusText = '';
+let statusColor = '#666';
+if (id.startsWith('DM_')) {
+    const other = getDMOtherUser(id);
+    if (other) {
+        const isOnline = roomOnlineUsers[id]?.includes(other.toLowerCase()) || false;
+        statusText = isOnline ? '● ONLINE' : '○ OFFLINE';
+        statusColor = isOnline ? '#00ff41' : '#666';
     }
+} else if (id.startsWith('CLUSTER_')) {
+    const onlineCount = (roomOnlineUsers[id] || []).length;
+    statusText = onlineCount > 0 ? `● ${onlineCount} ONLINE` : '○ 0 ONLINE';
+    statusColor = '#00ff41';
+}
+if (statusText) {
+    const statusSpan = document.createElement('span');
+    statusSpan.className = 'room-status-badge';
+    statusSpan.textContent = statusText;
+    statusSpan.style.color = statusColor;
+    headerEl.appendChild(statusSpan);
+}
 
     // Clear unread snippet highlight states
     const targetPreview = document.getElementById(`preview-${id}`);
     if (targetPreview) targetPreview.style.color = '#666';
 
-    // ---- Render Duel actions (your existing code) ----
+    //DUEL btn
     const actionContainer = document.getElementById('header-actions');
-    if (actionContainer) {
-        if (id.startsWith('CLUSTER_')) {
-            actionContainer.innerHTML = `
-                <button class="gate-btn outline" onclick="promptClusterInvite()" style="margin: 0 8px 0 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; display: inline-block;">
-                    [+ ADD PEOPLE]
-                </button>
-                <button class="gate-btn outline" onclick="openTTTConfigModal()" style="margin: 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; border-color: #ffcc00; color: #ffcc00; display: inline-block;">
-                    [⚔️DUEL]
-                </button>
-            `;
-            actionContainer.style.display = 'block';
-        } else if (id.startsWith('DM_')) {
-            actionContainer.innerHTML = `
-                <button class="gate-btn outline" onclick="openTTTConfigModal()" style="margin: 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; border-color: #ffcc00; color: #ffcc00;">
-                    [⚔️DUEL]
-                </button>
-            `;
-            actionContainer.style.display = 'block';
-        } else {
-            actionContainer.style.display = 'none';
-        }
+if (actionContainer) {
+    if (id.startsWith('CLUSTER_')) {
+        actionContainer.innerHTML = `
+            <button class="gate-btn outline header-btn" onclick="promptClusterInvite()" style="margin: 0 8px 0 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; display: inline-block;">
+               [+ ADD PEOPLE]
+            </button>
+            <button class="gate-btn outline" onclick="openTTTConfigModal()" style="margin: 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; border-color: var(--neon); color: var(--neon); display: inline-block;">
+                [⚔️DUEL]
+            </button>
+        `;
+        actionContainer.style.display = 'block';
+    } else if (id.startsWith('DM_')) {
+        actionContainer.innerHTML = `
+            <button class="gate-btn outline" onclick="openTTTConfigModal()" style="margin: 0; padding: 0.4rem 1rem; font-size: 0.85rem; width: auto; height: auto; border-color: var(--neon); color: var(--neon);">
+                [⚔️DUEL]
+            </button>
+        `;
+        actionContainer.style.display = 'block';
+    } else {
+        actionContainer.style.display = 'none';
     }
+}
 
     // Join the room via socket
     socket.emit('join_room', id);
@@ -447,7 +537,7 @@ function appendMsg(m) {
                     } else if (cleanMe !== pX && cleanMe !== pO) {
                         disableAllMatchCells(m.matchId);
                         banner.innerText = `WATCHING: @${pX.toUpperCase()} VS @${pO.toUpperCase()}`;
-                        banner.style.color = "#8b949e";
+                        banner.style.color = "var(--text-secondary)";
                     } else {
                         const activeUser = savedState.turn === "X" ? savedState.playerX : savedState.playerO;
                         banner.innerText = `TURN: @${activeUser.toUpperCase()} (${savedState.turn})`;
@@ -455,7 +545,7 @@ function appendMsg(m) {
                     }
                 } else if (savedState.status === "DRAW") {
                     banner.innerText = `STATUS: ENGAGEMENT DRAW`;
-                    banner.style.color = "#8b949e";
+                    banner.style.color = "var(--text-secondary)";
                     disableAllMatchCells(m.matchId);
                 } else if (savedState.status === "WON") {
                     if (cleanMe === pX || cleanMe === pO) {
@@ -536,13 +626,14 @@ function appendMsg(m) {
 
                 ${replyQuoteHTML}
 
-                <div class="msg-text-payload">${safeText}</div>
-
-                <!-- TIMESTAMP + STATUS ICON -->
-                <div style="display:flex; justify-content:flex-end; align-items:center; gap:4px; margin-top:4px;">
-                    <span class="msg-timestamp" style="font-size:0.65rem; color:#888; letter-spacing:0.5px;">${timeStr}</span>
-                    <span class="msg-status-icon" style="font-size:0.65rem; color:#888;">${isMe ? '✓' : ''}</span>
-                </div>
+                <!-- TEXT + TIMESTAMP (inline) -->
+                    <div class="msg-text-wrapper">
+                        <span class="msg-text-payload">${safeText}</span>
+                        <span class="msg-meta-wrapper">
+                          <span class="msg-timestamp">${timeStr}</span>
+                          <span class="msg-status-icon">${isMe ? '✓' : ''}</span>
+                          </span>
+                    </div>
 
                 <div class="reaction-tray" id="react-tray-${m._id}"></div>
             </div>
@@ -926,7 +1017,7 @@ function updatePresenceIndicators(roomId) {
                     width: 10px;
                     height: 10px;
                     border-radius: 50%;
-                    background: ${isOnline ? '#00ff41' : '#555'};
+                    background: ${isOnline ? '#00ff41' : 'var(--text-muted)'};
                     margin-left: 8px;
                     flex-shrink: 0;
                     box-shadow: ${isOnline ? '0 0 8px #00ff41' : 'none'};
@@ -948,47 +1039,273 @@ function startDM(username) {
 }
 //PROFILE MATRIX
 function renderUserProfile() {
-    let html = `
-        <h2 style="color:var(--neon); text-align:center; margin-bottom:1.5rem;">USER PROFILE</h2>
+    const themeColors = {
+        cyan: '#00f2ff',
+        soft: '#f7a1c4',
+        ocean: '#4fc3f7',
+        midnight: '#7c4dff'
+        
+    };
+
+    // Build theme buttons with color swatches
+    let themeButtons = '';
+    const themeKeys = Object.keys(themeColors);
+    themeKeys.forEach(theme => {
+        const isActive = currentTheme === theme;
+        themeButtons += `
+            <button class="profile-theme-btn ${isActive ? 'active' : ''}" 
+                    onclick="changeTheme('${theme}')" 
+                    style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                        padding: 0.5rem 0.3rem;
+                        border-radius: 8px;
+                        border: 2px solid ${isActive ? 'var(--neon)' : 'var(--border)'};
+                        background: ${isActive ? 'var(--neon-dim)' : 'transparent'};
+                        color: var(--text-primary);
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        font-size: 0.65rem;
+                        font-weight: ${isActive ? 'bold' : 'normal'};
+                        min-height: 36px;
+                        width: 100%;
+                    "
+                    onmouseover="this.style.borderColor='var(--neon)'"
+                    onmouseout="this.style.borderColor='${isActive ? 'var(--neon)' : 'var(--border)'}'">
+                <span style="
+                    display: inline-block;
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    background: ${themeColors[theme]};
+                    box-shadow: 0 0 8px ${themeColors[theme]}40;
+                    flex-shrink: 0;
+                "></span>
+                ${theme}
+            </button>
+        `;
+    });
+
+    // Build bubble style previews with ACTUAL bubble shapes
+    const bubbleStyles = [
+        { 
+            key: 'rect', 
+            label: 'RECT', 
+            preview: `
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;
+                    gap: 4px;
+                ">
+                    <div style="
+                        background: var(--neon-dim);
+                        border: 1px solid var(--neon);
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                        font-size: 0.5rem;
+                        color: var(--text-primary);
+                        max-width: 50px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    ">Hi</div>
+                </div>
+            `
+        },
+        { 
+            key: 'round', 
+            label: 'ROUND', 
+            preview: `
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;
+                    gap: 4px;
+                ">
+                    <div style="
+                        background: var(--neon-dim);
+                        border: 1px solid var(--neon);
+                        border-radius: 16px;
+                        padding: 3px 8px;
+                        font-size: 0.5rem;
+                        color: var(--text-primary);
+                        max-width: 50px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    ">Hi</div>
+                </div>
+            `
+        },
+        { 
+            key: 'bubble', 
+            label: 'BUBBLE', 
+            preview: `
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;
+                    gap: 4px;
+                ">
+                    <div style="
+                        background: var(--neon-dim);
+                        border: 1px solid var(--neon);
+                        border-radius: 18px 18px 18px 4px;
+                        padding: 3px 8px;
+                        font-size: 0.5rem;
+                        color: var(--text-primary);
+                        max-width: 50px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        position: relative;
+                    ">Hi</div>
+                </div>
+            `
+        }
+    ];
+
+    let bubbleButtons = '';
+    bubbleStyles.forEach(style => {
+        const isActive = bubbleStyle === style.key;
+        bubbleButtons += `
+            <button class="profile-geo-btn ${isActive ? 'active' : ''}" 
+                    onclick="changeBubbleStyle('${style.key}')"
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 4px;
+                        padding: 0.5rem 0.3rem;
+                        border-radius: 12px;
+                        border: 2px solid ${isActive ? 'var(--neon)' : 'var(--border)'};
+                        background: ${isActive ? 'var(--neon-dim)' : 'transparent'};
+                        color: var(--text-primary);
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        font-size: 0.6rem;
+                        font-weight: ${isActive ? 'bold' : 'normal'};
+                        min-height: 52px;
+                        flex: 1;
+                        min-width: 50px;
+                    "
+                    onmouseover="this.style.borderColor='var(--neon)'"
+                    onmouseout="this.style.borderColor='${isActive ? 'var(--neon)' : 'var(--border)'}'">
+                ${style.preview}
+                ${style.label}
+            </button>
+        `;
+    });
+
+    // VIP effect previews with subtle visual hints
+    const vipEffects = [
+        { key: 'neon', label: 'NEON', emoji: '✨', glow: '#ff00ff' },
+        { key: 'fire', label: 'FIRE', emoji: '🔥', glow: '#ff8800' },
+        { key: 'pulse', label: 'PULSE', emoji: '💫', glow: '#00ffff' }
+    ];
+
+    let vipButtons = '';
+    vipEffects.forEach(effect => {
+        const isActive = vipEffect === effect.key;
+        vipButtons += `
+            <button class="profile-effect-btn ${isActive ? 'active' : ''}" 
+                    onclick="changeVipEffect('${effect.key}')"
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 2px;
+                        padding: 0.5rem 0.3rem;
+                        border-radius: 12px;
+                        border: 2px solid ${isActive ? 'var(--neon)' : 'var(--border)'};
+                        background: ${isActive ? 'var(--neon-dim)' : 'transparent'};
+                        color: var(--text-primary);
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        font-size: 0.6rem;
+                        font-weight: ${isActive ? 'bold' : 'normal'};
+                        min-height: 52px;
+                        flex: 1;
+                        min-width: 50px;
+                    "
+                    onmouseover="this.style.borderColor='var(--neon)'"
+                    onmouseout="this.style.borderColor='${isActive ? 'var(--neon)' : 'var(--border)'}'">
+                <span style="font-size: 1.4rem; line-height: 1;">${effect.emoji}</span>
+                <span style="font-size: 0.6rem;">${effect.label}</span>
+                ${isActive ? `<span style="font-size: 0.45rem; color: var(--neon);">● ACTIVE</span>` : ''}
+            </button>
+        `;
+    });
+
+    const html = `
         <div style="text-align:center; margin-bottom:2rem;">
-            <div class="avatar-round" style="margin:0 auto; width:90px; height:90px; font-size:2.8rem;">
+            <div class="avatar-round" style="margin:0 auto; width:90px; height:90px; font-size:2.8rem; border-width:3px; box-shadow: 0 0 30px var(--neon-dim);">
                 ${me ? escapeHTML(me[0].toUpperCase()) : '?'}
             </div>
-            <h3 style="margin:1rem 0 0.5rem; color:#fff;">${escapeHTML(me)}</h3>
-            <div style="color:${isVipUser ? '#ff00ff' : '#00f2ff'}; font-weight:bold;">
-                ${isVipUser ? '★ VIP NODE' : 'STANDARD NODE'}
+            <h3 style="margin:1rem 0 0.3rem; color:var(--text-primary); font-size:1.3rem;">${escapeHTML(me)}</h3>
+            <div style="
+                display: inline-block;
+                padding: 0.15rem 1rem;
+                border-radius: 20px;
+                font-size:0.6rem;
+                font-weight:bold;
+                letter-spacing:1px;
+                background: ${isVipUser ? 'var(--neon-dim)' : 'var(--bg-hover)'};
+                color: ${isVipUser ? 'var(--neon)' : 'var(--text-secondary)'};
+                border: 1px solid ${isVipUser ? 'var(--neon)' : 'var(--border)'};
+            ">
+                ${isVipUser ? '★ VIP' : 'STANDARD'}
+            </div>
+        </div>
+
+        <div style="margin:1.8rem 0 1.5rem;">
+            <label style="display:block; font-size:0.6rem; letter-spacing:2px; color:var(--text-secondary); margin-bottom:0.6rem;">THEME</label>
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
+                ${themeButtons}
             </div>
         </div>
 
         <div style="margin:1.5rem 0;">
-            <label style="color:var(--neon); font-size:0.85rem;">UI THEME</label>
-            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
-                <button class="gate-btn outline ${currentTheme==='cyan'?'active':''}" onclick="changeTheme('cyan')" style="flex:1;">CYAN</button>
-                <button class="gate-btn outline ${currentTheme==='amber'?'active':''}" onclick="changeTheme('amber')" style="flex:1;">AMBER</button>
-                <button class="gate-btn outline ${currentTheme==='matrix'?'active':''}" onclick="changeTheme('matrix')" style="flex:1;">MATRIX</button>
-            </div>
-        </div>
-
-        <div style="margin:1.5rem 0;">
-            <label style="color:var(--neon); font-size:0.85rem;">PACKET GEOMETRY</label>
-            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
-                <button class="gate-btn outline ${bubbleStyle==='rect'?'active':''}" onclick="changeBubbleStyle('rect')" style="flex:1;">RECT</button>
-                <button class="gate-btn outline ${bubbleStyle==='round'?'active':''}" onclick="changeBubbleStyle('round')" style="flex:1;">ROUND</button>
-                <button class="gate-btn outline ${bubbleStyle==='bubble'?'active':''}" onclick="changeBubbleStyle('bubble')" style="flex:1;">BUBBLE</button>
+            <label style="display:block; font-size:0.6rem; letter-spacing:2px; color:var(--text-secondary); margin-bottom:0.6rem;">BUBBLE STYLE</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+                ${bubbleButtons}
             </div>
         </div>
 
         ${isVipUser ? `
         <div style="margin:1.5rem 0;">
-            <label style="color:var(--neon); font-size:0.85rem;">VIP RESONANCE</label>
-            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
-                <button class="gate-btn outline ${vipEffect==='neon'?'active':''}" onclick="changeVipEffect('neon')" style="flex:1;">NEON</button>
-                <button class="gate-btn outline ${vipEffect==='fire'?'active':''}" onclick="changeVipEffect('fire')" style="flex:1;">FIRE</button>
-                <button class="gate-btn outline ${vipEffect==='pulse'?'active':''}" onclick="changeVipEffect('pulse')" style="flex:1;">PULSE</button>
+            <label style="display:block; font-size:0.6rem; letter-spacing:2px; color:var(--text-secondary); margin-bottom:0.6rem;">VIP EFFECT</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+                ${vipButtons}
             </div>
-        </div>` : ''}
+        </div>
+        ` : ''}
 
-        <button onclick="logout()" class="gate-btn" style="margin-top:2rem; background:#ff0055; color:white; border:none;">SEVER CONNECTION</button>
+        <button onclick="logout()" style="
+            margin-top:1.5rem;
+            width:100%;
+            padding:0.8rem;
+            background: var(--danger);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size:0.8rem;
+            letter-spacing:1px;
+        " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+            LOG OUT
+        
+        </button>
     `;
     showModal(html);
 }
@@ -1015,8 +1332,10 @@ function changeBubbleStyle(style) {
 }
 
 function applyTheme(theme) {
-    const colors = { cyan: '#00f2ff', amber: '#ffcc00', matrix: '#00ff41' };
-    document.documentElement.style.setProperty('--neon', colors[theme] || '#00f2ff');
+    const palette = THEMES[theme] || THEMES.cyan;
+    for (const [prop, value] of Object.entries(palette)) {
+        document.documentElement.style.setProperty(prop, value);
+    }
 }
 
 function showModal(content) {
@@ -1430,9 +1749,8 @@ function viewReactionDetails(emoji, usersArray) {
     usersArray.forEach(user => {
         const isItMe = user.toLowerCase() === me.toLowerCase();
         html += `
-            <div style="display:flex; align-items:center; justify-content:between; padding:10px; border-bottom:1px solid rgba(255,255,255,0.03); font-family:'JetBrains Mono', monospace;">
-                <span style="color:#fff; font-weight:bold;">${escapeHTML(user)}</span>
-                ${isItMe ? '<span style="color:var(--neon); font-size:0.8rem; margin-left:auto;">(YOU)</span>' : ''}
+            <div style="display:flex; align-items:center; justify-content:between; padding:10px; border-bottom:1px solid var(--border-light); font-family:'JetBrains Mono', monospace;">
+            <span style="color:var(--text-primary); font-weight:bold;">${escapeHTML(user)}</span>                ${isItMe ? '<span style="color:var(--neon); font-size:0.8rem; margin-left:auto;">(YOU)</span>' : ''}
             </div>
         `;
     });
@@ -1550,7 +1868,7 @@ socket.on('match_updated', (match) => {
         if (cleanMe !== pX && cleanMe !== pO) {
             disableAllMatchCells(match._id);
             statusBanner.innerText = `WATCHING: @${pX.toUpperCase()} VS @${pO.toUpperCase()}`;
-            statusBanner.style.color = "#8b949e";
+            statusBanner.style.color = "var(--text-secondary)";
             return;
         }
     }
@@ -1561,7 +1879,7 @@ socket.on('match_updated', (match) => {
         statusBanner.style.color = "var(--neon)";
     } else if (match.status === "DRAW") {
         statusBanner.innerText = `STATUS: ENGAGEMENT DRAW`;
-        statusBanner.style.color = "#8b949e";
+        statusBanner.style.color = "var(--text-secondary)";
         disableAllMatchCells(match._id);
     } else if (match.status === "WON") {
         if (cleanMe === pX || cleanMe === pO) {
@@ -1630,7 +1948,7 @@ function openTTTConfigModal() {
     }
 
     html += `
-        <button class="gate-btn" onclick="executeMatchDeployment()" style="background:#ffcc00; color:#000; margin-top:10px; font-weight:bold;">START DUEL</button>
+        <button class="gate-btn" onclick="executeMatchDeployment()" style="background:#ffcc00; color:var(--bg-input); margin-top:10px; font-weight:bold;">START DUEL</button>
         <button class="gate-btn outline" onclick="closeModal()" style="margin-top:6px;">CANCEL</button>
     `;
     
