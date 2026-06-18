@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dischat-matrix-v4';
+const CACHE_NAME = 'dischat-matrix-v5';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -24,25 +24,39 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// 3. Fetch: Network-first, fallback to cache
+// 3. Fetch: Network-first, fallback to cache (SAFE – ignores problematic requests)
 self.addEventListener('fetch', (event) => {
-    if (event.request.url.includes('socket.io')) return;
+    const url = new URL(event.request.url);
+
+    // Skip: socket.io, non-GET methods, range requests (partial content)
+    if (event.request.method !== 'GET' ||
+        event.request.url.includes('socket.io') ||
+        event.request.headers.has('range')) {
+        return; // Let the browser handle normally
+    }
 
     event.respondWith(
         fetch(event.request)
             .then((response) => {
-                // Update cache with fresh version
-                const responseClone = response.clone();
-                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+                // Only cache successful responses with status 200 and basic type
+                if (response.status === 200 && response.type === 'basic') {
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        try {
+                            cache.put(event.request, responseClone);
+                        } catch (e) {
+                            // Ignore caching errors (e.g., opaque responses)
+                        }
+                    });
+                }
                 return response;
             })
             .catch(() => caches.match(event.request))
     );
 });
 
-//PUSH EVENT
+// 4. Push: Handle incoming notifications
 self.addEventListener('push', (event) => {
-    // Default payload
     let payload = {
         title: 'DisChat',
         body: 'New activity detected.',
@@ -59,10 +73,7 @@ self.addEventListener('push', (event) => {
         }
     }
 
-    // Build deep-link URL with roomId and roomName
     const deepLinkUrl = `/?join=${encodeURIComponent(payload.roomId || '')}&name=${encodeURIComponent(payload.roomName || '')}`;
-
-    
     const tag = payload.sender ? `dischat-msg-${payload.sender}` : 'dischat-alert';
 
     const options = {
@@ -85,11 +96,9 @@ self.addEventListener('notificationclick', (event) => {
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            // Try to focus an existing window
             for (const client of clientList) {
                 if (client.url === targetUrl && 'focus' in client) return client.focus();
             }
-            // Otherwise open a new window
             return clients.openWindow(targetUrl);
         })
     );
