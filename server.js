@@ -963,7 +963,7 @@ app.post('/api/register-push-device', async (req, res) => {
 //     if (!PUBLIC_VAPID_KEY || !PRIVATE_VAPID_KEY) return;
 
 //     const payload = JSON.stringify({ title: titleText, body: bodyText });
-//     // Normalize to prevent case-sensitivity issues (e.g., 'Ramim' vs 'ramim')
+//     // Normalize to prevent case-sensitivity issues
 //     const normalizedSender = senderUsername ? senderUsername.trim().toLowerCase() : null;
 
 //     deviceSubscriptions.forEach((entry, index) => {

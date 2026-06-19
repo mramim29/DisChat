@@ -24,14 +24,15 @@
     --text-muted: #555;
     --text-inverse: #000;
 
+    /* Font */
     --font-family: 'JetBrains Mono', monospace;
+
     /* Borders */
     --border: #1a212a;
     --border-light: rgba(255, 255, 255, 0.06);
 
     --danger: #ff0055;
     --sidebar-w: 340px;
-
 }
 
 /* ------ BASE ------ */
@@ -97,7 +98,11 @@ body {
     border-left-color: var(--danger);
     box-shadow: 0 5px 25px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 0, 85, 0.15);
 }
-
+#toast-bin .notification-toast {
+    pointer-events: auto;
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+}
 @keyframes slideIn {
     from {
         transform: translateX(120%);
@@ -140,7 +145,10 @@ body {
     justify-content: center;
     background: radial-gradient(circle, #0a111a 0%, var(--bg-input) 100%);
 }
-
+.auth-wrapper {
+    background: radial-gradient(circle at 30% 40%, var(--neon-dim) 0%, var(--bg-primary) 80%);
+    animation: gradientShift 12s ease-in-out infinite alternate;
+}
 .glitch-title {
     font-size: clamp(1.8rem, 5vw, 2.6rem);
     color: var(--neon);
@@ -1263,26 +1271,254 @@ body,
     background: var(--neon-dim) !important;
 }
 
-/* Caveat font sizing */
-body[data-font="caveat"] {
-    font-size: 1.2rem;
-}
-body[data-font="caveat"] .msg-text-payload {
-    font-size: 1.1rem;
-}
-body[data-font="caveat"] .nav-item {
-    font-size: 1rem;
-}
-body[data-font="caveat"] .gate-btn {
-    font-size: 1.1rem;
+/* ---- Auth Panel ---- */
+.auth-panel {
+    padding: 2.5rem 2rem;
+    border-radius: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--neon);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px var(--neon-dim);
+    max-width: 440px;
+    width: 90%;
+    transition: all 0.3s ease;
 }
 
-/* Mobile override */
+.auth-panel .gate-input {
+    margin-bottom: 1.2rem;
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.auth-panel .gate-input:focus {
+    border-color: var(--neon);
+    box-shadow: 0 0 12px var(--neon-dim);
+}
+
+.auth-panel .gate-btn {
+    border-radius: 8px;
+    padding: 0.9rem;
+    font-size: 1rem;
+    clip-path: none;
+    transition: all 0.2s ease;
+    background: var(--neon);
+    color: var(--bg-input);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.auth-panel .gate-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0 25px var(--neon);
+}
+
+.auth-panel .gate-btn.outline {
+    background: transparent;
+    border: 1px solid var(--neon);
+    color: var(--neon);
+}
+
+.auth-panel a {
+    transition: color 0.2s;
+}
+
+.auth-panel a:hover {
+    color: var(--text-primary) !important;
+    text-decoration: none !important;
+}
+
+#auth-msg, #reg-msg {
+    font-size: 0.8rem;
+    min-height: 1.5em;
+    margin-top: 0.8rem;
+}
+
+/* ===== AUTH ANIMATIONS ===== */
+
+
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+}
+
+/* ---- Panel entrance animation ---- */
+.auth-panel {
+    animation: panelFadeIn 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+}
+
+@keyframes panelFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(20px) scale(0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ---- Panel switching animations ---- */
+/* ---- Panel switching animations ---- */
+#login-panel.slide-out,
+#register-panel.slide-out {
+    animation: slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+#login-panel.slide-in,
+#register-panel.slide-in {
+    animation: slideIn 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+}
+
+@keyframes slideOut {
+    0% {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(30px) scale(0.95);
+    }
+}
+
+@keyframes slideIn {
+    0% {
+        opacity: 0;
+        transform: translateX(-30px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+/* ---- Glowing title animation ---- */
+.glitch-title {
+    animation: glowPulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes glowPulse {
+    0% {
+        text-shadow: 0 0 8px var(--neon-dim), 0 0 20px rgba(0,0,0,0.2);
+    }
+    100% {
+        text-shadow: 0 0 20px var(--neon), 0 0 40px var(--neon-dim), 0 0 60px rgba(0,0,0,0.1);
+    }
+}
+
+/* ---- Input focus animation ---- */
+.gate-input {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.gate-input:focus {
+    transform: scale(1.01);
+    border-color: var(--neon);
+    box-shadow: 0 0 20px var(--neon-dim), inset 0 0 20px var(--neon-dim);
+}
+
+/* ---- Button hover animation (already has scale, just enhance) ---- */
+.auth-panel .gate-btn {
+    transition: all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.auth-panel .gate-btn:hover {
+    transform: scale(1.04) translateY(-2px);
+    box-shadow: 0 8px 30px var(--neon-dim);
+}
+
+/* ---- Link hover animation ---- */
+.auth-panel a {
+    position: relative;
+    transition: color 0.3s, text-shadow 0.3s;
+}
+
+.auth-panel a:hover {
+    color: var(--neon) !important;
+    text-shadow: 0 0 12px var(--neon-dim);
+}
+/*CAVEAT FONT SIZING */
+
+/* ---- Desktop ---- */
+body[data-font="caveat"] {
+    font-size: 1.3rem;                /* global base */
+}
+body[data-font="caveat"] #active-room {
+    font-size: 1.4rem !important;     /* header room name */
+}
+body[data-font="caveat"] .room-status-badge {
+    font-size: 0.8rem !important;     /* online/offline */
+}
+body[data-font="caveat"] .msg-text-payload {
+    font-size: 1.2rem;                /* message text */
+}
+body[data-font="caveat"] .msg-sender {
+    font-size: 1rem;                  /* sender name */
+}
+body[data-font="caveat"] .msg-timestamp {
+    font-size: 0.7rem;                /* time */
+}
+body[data-font="caveat"] .nav-item {
+    font-size: 1.1rem;                /* sidebar items */
+}
+body[data-font="caveat"] .gate-btn {
+    font-size: 1.1rem;                /* buttons */
+}
+body[data-font="caveat"] .chat-flow .system-broadcast-badge span {
+    font-size: 0.85rem;               /* system messages */
+}
+
+/* ---- Mobile Override (stronger) ---- */
 @media (max-width: 768px) {
     body[data-font="caveat"] {
-        font-size: 1.2rem !important; /* or 19px */
+        font-size: 1.2rem !important;
+    }
+    body[data-font="caveat"] #active-room {
+        font-size: 1.3rem !important;  /* header – increase if needed */
+    }
+    body[data-font="caveat"] .room-status-badge {
+        font-size: 0.75rem !important;
     }
     body[data-font="caveat"] .msg-text-payload {
         font-size: 1.15rem !important;
     }
+    body[data-font="caveat"] .msg-sender {
+        font-size: 0.9rem !important;
+    }
+    body[data-font="caveat"] .msg-timestamp {
+        font-size: 0.6rem !important;
+    }
+    body[data-font="caveat"] .nav-item {
+        font-size: 1rem !important;
+    }
+}
+
+/* ===== FIX: Autofill Styling ===== */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-input) inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    caret-color: var(--text-primary) !important;
+    border-color: var(--neon) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+input:-moz-autofill {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--neon) !important;
+}
+
+/* For the auth panel specifically, ensure autofill matches theme */
+.auth-panel input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-input) inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    border-color: var(--neon) !important;
 }

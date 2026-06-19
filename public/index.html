@@ -42,24 +42,51 @@
         </div>
     </div>
 
-    <div id="auth-layer" class="gate-wrapper" style="display:none">
-        <div class="gate-panel">
-            <div class="glitch-title">DISCHAT</div>
-            <div style="text-align:center; margin-bottom:1.5rem;  color:#00f2ff; font-size:0.9rem; letter-spacing:2px;">
-               Chat Securely
-            </div>
+    <div id="auth-layer" class="gate-wrapper auth-wrapper" style="display:none">
+    <div class="gate-panel auth-panel">
+        
+        <!-- ===== LOGIN PANEL ===== -->
+        <div id="login-panel" style="display:block;">
+            <div class="glitch-title" style="font-size:2rem; margin-bottom:1.5rem;">DISCHAT</div>
+            <p style="text-align:center; color:var(--text-secondary); font-size:0.8rem; margin-bottom:1.5rem; letter-spacing:2px;">
+                Chat Securely
+            </p>
             
             <input id="l-u" class="gate-input" placeholder="Username" spellcheck="false" autocomplete="off">
-            <input id="l-p" class="gate-input" type="password" placeholder="PASSKEY">
+            <input id="l-p" class="gate-input" type="password" placeholder="Password" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
             
-            <button class="gate-btn" onclick="auth('login')">Login</button>
-            <button class="gate-btn outline" style="font-size:0.9rem; padding:0.8rem;" onclick="auth('register')">
-                REGISTER_NEW_ID
-            </button>
+            <button class="gate-btn" onclick="auth('login')" id="login-btn">LOGIN</button>
             
-            <p id="auth-msg" style="text-align:center; margin-top:1.5rem; font-size:0.85rem; min-height:1.2em;"></p>
+            <p style="text-align:center; margin-top:1rem; font-size:0.8rem; color:var(--text-secondary);">
+                Don't have an account? 
+                <a href="#" onclick="switchAuthPanel('register')" style="color:var(--neon); text-decoration:underline; cursor:pointer;">Register</a>
+            </p>
+            
+            <p id="auth-msg" style="text-align:center; margin-top:1.2rem; font-size:0.85rem; min-height:1.2em; color:var(--text-secondary);"></p>
         </div>
+        
+        <!-- ===== REGISTER PANEL ===== -->
+        <div id="register-panel" style="display:none;">
+            <div class="glitch-title" style="font-size:2rem; margin-bottom:1.5rem;">JOIN DISCHAT</div>
+            <p style="text-align:center; color:var(--text-secondary); font-size:0.8rem; margin-bottom:1.5rem; letter-spacing:2px;">
+                Create your secure identity
+            </p>
+            
+            <input id="reg-u" class="gate-input" placeholder="Choose Username" spellcheck="false" autocomplete="off">
+            <input id="reg-p" class="gate-input" type="password" placeholder="Create Password" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');">
+            
+            <button class="gate-btn" onclick="auth('register')" id="register-btn">CREATE ACCOUNT</button>
+            
+            <p style="text-align:center; margin-top:1rem; font-size:0.8rem; color:var(--text-secondary);">
+                Already have an account? 
+                <a href="#" onclick="switchAuthPanel('login')" style="color:var(--neon); text-decoration:underline; cursor:pointer;">Login</a>
+            </p>
+            
+            <p id="reg-msg" style="text-align:center; margin-top:1.2rem; font-size:0.85rem; min-height:1.2em; color:var(--text-secondary);"></p>
+        </div>
+        
     </div>
+</div>
 
     <div id="app" class="terminal-grid" style="display:none">
         <aside id="sidebar" class="sidebar">
@@ -69,7 +96,7 @@
             </div>
 
             <div style="padding:1rem; position:relative; border-bottom:1px solid var(--border);">
-                <input id="net-search" placeholder="Find Users or Clusters" oninput="handleSearch()" class="gate-input" style="margin:0;">
+                <input id="net-search" placeholder="Find Users or Clusters" oninput="handleSearch()" class="gate-input" style="margin:0;" autocomplete="off">
                 <div id="search-drop" class="search-results"></div>
             </div>
 
