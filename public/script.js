@@ -103,6 +103,13 @@ function applyFont(fontKey) {
     document.documentElement.style.setProperty('--font-family', fontFamily);
     currentFont = fontKey;
     localStorage.setItem('dischat-font', fontKey);
+
+    // Make Caveat bigger by adding a data attribute to body
+    if (fontKey === 'caveat') {
+        document.body.setAttribute('data-font', 'caveat');
+    } else {
+        document.body.removeAttribute('data-font');
+    }
 }
 
 function changeFont(fontKey) {

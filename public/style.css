@@ -1262,3 +1262,27 @@ body,
     border-color: var(--neon) !important;
     background: var(--neon-dim) !important;
 }
+
+/* Caveat font sizing */
+body[data-font="caveat"] {
+    font-size: 1.2rem;
+}
+body[data-font="caveat"] .msg-text-payload {
+    font-size: 1.1rem;
+}
+body[data-font="caveat"] .nav-item {
+    font-size: 1rem;
+}
+body[data-font="caveat"] .gate-btn {
+    font-size: 1.1rem;
+}
+
+/* Mobile override */
+@media (max-width: 768px) {
+    body[data-font="caveat"] {
+        font-size: 1.2rem !important; /* or 19px */
+    }
+    body[data-font="caveat"] .msg-text-payload {
+        font-size: 1.15rem !important;
+    }
+}
