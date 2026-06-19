@@ -227,120 +227,26 @@ function escapeHTML(str) {
 
 function showNotify(text, title = "SYSTEM", type = "info", roomId = null, roomName = null, sender = null) {
     const bin = document.getElementById('toast-bin');
-    
-    // --- LIMIT: Keep only the last 2 notifications ---
-    while (bin.children.length >= 2) {
-        const first = bin.children[0];
-        if (first) {
-            first.style.opacity = '0';
-            first.style.transform = 'translateX(100px)';
-            setTimeout(() => {
-                if (first.parentNode === bin) bin.removeChild(first);
-            }, 300);
-        }
-    }
+    if (bin.children.length > 5) bin.removeChild(bin.children[0]);
 
     const t = document.createElement('div');
     t.className = `notification-toast ${type}`;
     t.innerHTML = `<strong style="color:var(--neon)">[${escapeHTML(title)}]</strong><br>${escapeHTML(text)}`;
-    t.style.cursor = 'grab';
-    t.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-    t.style.userSelect = 'none';
-    t.style.touchAction = 'none'; // prevent page scroll while swiping
 
     if (roomId) {
-        t.style.cursor = 'pointer';
-        t.onclick = () => {
-            t.remove();
-            joinRoom(roomId, roomName || roomId);
+        t.style.cursor = "pointer";
+        t.onclick = () => { 
+            t.remove(); 
+            joinRoom(roomId, roomName || roomId); 
         };
     }
-
     bin.appendChild(t);
-
-    // --- SWIPE TO DISMISS (Touch + Mouse) ---
-    let startX = 0, currentX = 0, isDragging = false;
-
-    const startDrag = (x) => {
-        startX = x;
-        currentX = x;
-        isDragging = true;
-        t.style.cursor = 'grabbing';
-        t.style.transition = 'none';
-    };
-
-    const moveDrag = (x) => {
-        if (!isDragging) return;
-        currentX = x;
-        const diff = currentX - startX;
-        t.style.transform = `translateX(${diff}px)`;
-        t.style.opacity = 1 - Math.abs(diff) / 250;
-    };
-
-    const endDrag = () => {
-        if (!isDragging) return;
-        isDragging = false;
-        t.style.cursor = roomId ? 'pointer' : 'grab';
-        t.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-        const diff = currentX - startX;
-        if (Math.abs(diff) > 80) {
-            const dir = diff > 0 ? 1 : -1;
-            t.style.transform = `translateX(${dir * 200}px)`;
-            t.style.opacity = '0';
-            setTimeout(() => {
-                if (t.parentNode === bin) bin.removeChild(t);
-            }, 300);
-        } else {
-            t.style.transform = 'translateX(0)';
-            t.style.opacity = '1';
-        }
-    };
-
-    // --- Touch events ---
-    t.addEventListener('touchstart', (e) => {
-        if (e.target.closest('a') || e.target.closest('button')) return;
-        const touch = e.touches[0];
-        startDrag(touch.clientX);
-    }, { passive: true });
-
-    t.addEventListener('touchmove', (e) => {
-        if (!isDragging) return;
-        const touch = e.touches[0];
-        moveDrag(touch.clientX);
-        e.preventDefault(); // prevent page scroll while swiping
-    }, { passive: false });
-
-    t.addEventListener('touchend', () => {
-        endDrag();
-    }, { passive: true });
-
-    // --- Mouse events (desktop) ---
-    t.addEventListener('mousedown', (e) => {
-        if (e.target.closest('a') || e.target.closest('button')) return;
-        startDrag(e.clientX);
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        moveDrag(e.clientX);
-    });
-
-    window.addEventListener('mouseup', () => {
-        if (isDragging) endDrag();
-    });
-
-    // --- Auto-dismiss after 7 seconds 
+    
+    // --- AUTO-DISMISS AFTER 1 SECOND ---
     setTimeout(() => {
-        if (t.parentNode === bin) {
-            t.style.opacity = '0';
-            t.style.transform = 'translateX(50px)';
-            setTimeout(() => {
-                if (t.parentNode === bin) bin.removeChild(t);
-            }, 300);
-        }
-    }, 7000);
+        if (t.parentNode === bin) bin.removeChild(t);
+    }, 1000);
 
-    // Notification sound & system notification 
     const shouldNotify = 
         document.visibilityState !== 'visible' || 
         (roomId && roomId !== curRoom);
@@ -403,7 +309,7 @@ function auth(type) {
     }
 }
 
-// Switch between login and register panels with animation
+// Switch between login and register panels
 function switchAuthPanel(panel) {
     const loginPanel = document.getElementById('login-panel');
     const registerPanel = document.getElementById('register-panel');
@@ -414,36 +320,15 @@ function switchAuthPanel(panel) {
     if (authMsg) authMsg.innerText = '';
     if (regMsg) regMsg.innerText = '';
     
-    // Determine which panel is currently active and which to show
-    const isLoginVisible = loginPanel.style.display !== 'none';
-    const targetPanel = panel === 'login' ? loginPanel : registerPanel;
-    const currentPanel = panel === 'login' ? registerPanel : loginPanel;
-    
-    // If already showing the target, do nothing
-    if ((panel === 'login' && isLoginVisible) || (panel === 'register' && !isLoginVisible)) {
-        return;
+    if (panel === 'login') {
+        loginPanel.style.display = 'block';
+        registerPanel.style.display = 'none';
+        document.getElementById('l-u')?.focus();
+    } else {
+        loginPanel.style.display = 'none';
+        registerPanel.style.display = 'block';
+        document.getElementById('reg-u')?.focus();
     }
-    
-    // Animate out the current panel
-    currentPanel.classList.remove('slide-in');
-    currentPanel.classList.add('slide-out');
-    
-    // After animation, hide it and show the new one with slide-in
-    setTimeout(() => {
-        currentPanel.style.display = 'none';
-        currentPanel.classList.remove('slide-out');
-        
-        // Show target panel with slide-in animation
-        targetPanel.style.display = 'block';
-        targetPanel.classList.remove('slide-in');
-        // Force reflow to restart animation
-        void targetPanel.offsetWidth;
-        targetPanel.classList.add('slide-in');
-        
-        // Focus the first input
-        const input = panel === 'login' ? document.getElementById('l-u') : document.getElementById('reg-u');
-        if (input) setTimeout(() => input.focus(), 100);
-    }, 300); // Matches slide-out duration
 }
 function tryAutoLogin() {
     const savedUsername = localStorage.getItem('dischat_username');

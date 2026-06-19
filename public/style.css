@@ -98,11 +98,7 @@ body {
     border-left-color: var(--danger);
     box-shadow: 0 5px 25px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 0, 85, 0.15);
 }
-#toast-bin .notification-toast {
-    pointer-events: auto;
-    backface-visibility: hidden;
-    will-change: transform, opacity;
-}
+
 @keyframes slideIn {
     from {
         transform: translateX(120%);
