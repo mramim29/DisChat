@@ -630,7 +630,7 @@ ISC License - see LICENSE file for details.
 
 ## Author
 
-MrAmim29
+Mohammad Ramim
 
 - GitHub: [mramim29](https://github.com/mramim29)
 - Repository: [DisChat](https://github.com/mramim29/DisChat)
@@ -644,5 +644,5 @@ For issues and questions:
 ---
 
 Last Updated: July 2024
-Version: 1.0.0
+Version: 6.0.40_N
 Status: Active Development
